@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "id": "doubao",
+  "name": {
+    "zh-CN": "豆包（火山方舟）",
+    "en-US": "Doubao (Volcengine Ark)"
+  },
+  "format": "openai-compatible",
+  "endpoints": {
+    "base": "https://ark.cn-beijing.volces.com/api/v3",
+    "chat": {
+      "path": "/chat/completions"
+    },
+    "models": {
+      "path": "/models"
+    },
+    "files": {
+      "path": "/files"
+    }
+  },
+  "credential": {
+    "kind": "api-key",
+    "headers": [
+      {
+        "name": "Authorization",
+        "prefix": "Bearer "
+      }
+    ]
+  },
+  "capabilities": [
+    {
+      "id": "text:generate",
+      "stream": "sse-openai",
+      "params": {
+        "maxTokens": "max_tokens",
+        "temperature": "temperature",
+        "topP": "top_p",
+        "stop": "stop"
+      },
+      "limits": {
+        "maxTokens": {
+          "min": 1,
+          "default": 4096
+        },
+        "temperature": {
+          "min": 0,
+          "max": 2,
+          "default": 1
+        },
+        "topP": {
+          "min": 0,
+          "max": 1,
+          "default": 0.7
+        }
+      }
+    },
+    {
+      "id": "prompt:system",
+      "mode": "message-role",
+      "role": "system"
+    },
+    {
+      "id": "reasoning:think",
+      "style": "type-toggle",
+      "field": "thinking",
+      "onValue": "enabled",
+      "offValue": "disabled"
+    },
+    {
+      "id": "vision:image",
+      "contentType": "image_url",
+      "inputs": [
+        "url",
+        "base64",
+        "file-id"
+      ]
+    },
+    {
+      "id": "document:read",
+      "contentType": "file",
+      "inputs": [
+        "file-id"
+      ]
+    }
+  ]
+}
