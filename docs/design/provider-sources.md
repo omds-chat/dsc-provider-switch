@@ -95,7 +95,6 @@ dsc-provider-switch 把「一个模型来源的端点描述」做成可注册的
 | `openai-chat` 执行缺口 | 内核没有 `openai-chat` 的执行分支,内置的 openai 端点登记后今天调不通;转换层与校验已就绪 | 内核补齐 `openai-chat` 分支前,openai 端点仅作声明占位 |
 | doubao 未内置 | `schemas/examples/doubao.descriptor.json` 已按调研落成方言示例,但豆包的 `reasoning:think` 形态(type-toggle 加 effort-level 并存、responseField)超出本版 Schema 的单分叉表达,未内置注册 | Schema 演进后再评估;见 docs/spec.md 第八节 |
 | 引擎 Schema 未收录 `provider:run` | 清单与 meta Schema 的能力枚举只到 `provider:source`;引擎实现已含 `provider:run` | 上游同步 Schema 枚举;差异已记入 specs/README.md 的「已知差异」表 |
-| 根 README | 本仓库还没有面向人的 `README.md` / `README.en-US.md`,入口说明暂由本设计文档与 docs/README.md 承担 | 插件形态稳定后补齐中英两版 |
 
 ## 七、与宿主实现的对齐依据
 
