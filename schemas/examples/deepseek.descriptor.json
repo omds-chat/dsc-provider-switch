@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "id": "deepseek",
+  "name": {
+    "zh-CN": "DeepSeek 官方",
+    "en-US": "DeepSeek official"
+  },
+  "format": "deepseek-compatible",
+  "endpoints": {
+    "base": "https://api.deepseek.com",
+    "chat": {
+      "path": "/chat/completions"
+    },
+    "models": {
+      "path": "/models"
+    }
+  },
+  "credential": {
+    "kind": "api-key",
+    "headers": [
+      {
+        "name": "Authorization",
+        "prefix": "Bearer "
+      }
+    ]
+  },
+  "capabilities": [
+    {
+      "id": "text:generate",
+      "stream": "sse-openai",
+      "params": {
+        "maxTokens": "max_tokens",
+        "temperature": "temperature",
+        "topP": "top_p",
+        "stop": "stop"
+      },
+      "limits": {
+        "maxTokens": {
+          "min": 1,
+          "max": 393216
+        },
+        "temperature": {
+          "min": 0,
+          "max": 2,
+          "default": 1
+        }
+      }
+    },
+    {
+      "id": "prompt:system",
+      "mode": "message-role",
+      "role": "system"
+    },
+    {
+      "id": "reasoning:think",
+      "style": "effort-level",
+      "field": "reasoning_effort",
+      "levels": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "defaultLevel": "medium",
+      "responseField": "reasoning_content"
+    },
+    {
+      "id": "tool:web-search",
+      "kind": "server-tool",
+      "requestField": "tools",
+      "names": [
+        "deepseek_web_search"
+      ]
+    },
+    {
+      "id": "tool:read-url",
+      "kind": "server-tool",
+      "requestField": "tools",
+      "names": [
+        "deepseek_read_url"
+      ]
+    }
+  ]
+}

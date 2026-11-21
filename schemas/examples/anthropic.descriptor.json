@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 1,
+  "id": "anthropic",
+  "name": {
+    "zh-CN": "Anthropic 官方",
+    "en-US": "Anthropic official"
+  },
+  "format": "anthropic-compatible",
+  "endpoints": {
+    "base": "https://api.anthropic.com",
+    "chat": {
+      "path": "/v1/messages",
+      "headers": [
+        {
+          "name": "anthropic-version",
+          "value": "2023-06-01"
+        }
+      ]
+    },
+    "models": {
+      "path": "/v1/models",
+      "headers": [
+        {
+          "name": "anthropic-version",
+          "value": "2023-06-01"
+        }
+      ]
+    },
+    "files": {
+      "path": "/v1/files",
+      "headers": [
+        {
+          "name": "anthropic-version",
+          "value": "2023-06-01"
+        },
+        {
+          "name": "anthropic-beta",
+          "value": "files-api-2025-04-14"
+        }
+      ]
+    }
+  },
+  "credential": {
+    "kind": "api-key",
+    "headers": [
+      {
+        "name": "x-api-key"
+      }
+    ]
+  },
+  "capabilities": [
+    {
+      "id": "text:generate",
+      "stream": "sse-anthropic",
+      "params": {
+        "maxTokens": "max_tokens",
+        "temperature": "temperature",
+        "topP": "top_p",
+        "topK": "top_k",
+        "stop": "stop_sequences"
+      },
+      "requiredParams": [
+        "maxTokens"
+      ],
+      "limits": {
+        "maxTokens": {
+          "min": 1
+        },
+        "temperature": {
+          "min": 0,
+          "max": 1
+        },
+        "topP": {
+          "min": 0,
+          "max": 1
+        }
+      }
+    },
+    {
+      "id": "prompt:system",
+      "mode": "top-level-field",
+      "field": "system"
+    },
+    {
+      "id": "reasoning:think",
+      "style": "type-toggle",
+      "field": "thinking",
+      "onValue": "enabled",
+      "offValue": "disabled",
+      "adaptiveValue": "adaptive",
+      "budgetField": "budget_tokens",
+      "budgetMin": 1024,
+      "budgetCountsInMaxTokens": true
+    },
+    {
+      "id": "vision:image",
+      "contentType": "image",
+      "inputs": [
+        "base64",
+        "url",
+        "file-id"
+      ],
+      "mediaTypeField": "media_type"
+    },
+    {
+      "id": "document:read",
+      "contentType": "document",
+      "inputs": [
+        "base64",
+        "file-id"
+      ]
+    },
+    {
+      "id": "tool:web-search",
+      "kind": "server-tool",
+      "requestField": "tools",
+      "names": [
+        "web_search"
+      ]
+    },
+    {
+      "id": "tool:read-url",
+      "kind": "server-tool",
+      "requestField": "tools",
+      "names": [
+        "web_fetch"
+      ]
+    }
+  ]
+}

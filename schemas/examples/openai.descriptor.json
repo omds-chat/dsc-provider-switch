@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "id": "openai",
+  "name": {
+    "zh-CN": "OpenAI 官方",
+    "en-US": "OpenAI official"
+  },
+  "format": "openai-compatible",
+  "endpoints": {
+    "base": "https://api.openai.com/v1",
+    "chat": {
+      "path": "/chat/completions"
+    },
+    "models": {
+      "path": "/models"
+    }
+  },
+  "credential": {
+    "kind": "api-key",
+    "headers": [
+      {
+        "name": "Authorization",
+        "prefix": "Bearer "
+      }
+    ]
+  },
+  "capabilities": [
+    {
+      "id": "text:generate",
+      "stream": "sse-openai",
+      "params": {
+        "maxTokens": "max_completion_tokens",
+        "temperature": "temperature",
+        "topP": "top_p",
+        "stop": "stop"
+      },
+      "limits": {
+        "temperature": {
+          "min": 0,
+          "max": 2,
+          "default": 1
+        },
+        "topP": {
+          "min": 0,
+          "max": 1,
+          "default": 1
+        }
+      }
+    },
+    {
+      "id": "prompt:system",
+      "mode": "message-role",
+      "role": "system"
+    },
+    {
+      "id": "reasoning:think",
+      "style": "effort-level",
+      "field": "reasoning_effort",
+      "levels": [
+        "minimal",
+        "low",
+        "medium",
+        "high"
+      ],
+      "defaultLevel": "medium"
+    },
+    {
+      "id": "vision:image",
+      "contentType": "image_url",
+      "inputs": [
+        "url",
+        "base64"
+      ]
+    },
+    {
+      "id": "tool:web-search",
+      "kind": "request-tools",
+      "requestField": "tools",
+      "names": [
+        "web_search"
+      ]
+    }
+  ]
+}

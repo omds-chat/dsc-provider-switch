@@ -1,0 +1,818 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omds-chat.github.io/dsc-provider-switch/schemas/source-descriptor.schema.json",
+  "title": "dsc-source-descriptor",
+  "description": "来源描述文件:声明单个模型来源的端点、鉴权、能力与参数映射。字段含义、三家差异对照与版本演进规则以 docs/spec.md 为准;本 Schema 只表达结构规则,跨字段规则见顶层 $comment。读取方不加载本 Schema,schemaVersion 不是 1 时一律按不可读处理。不得在本文件中写入任何密钥、令牌、证书或私钥内容。",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1,
+      "description": "结构版本,当前固定为 1。其它取值按不可读处理,不做静默降级;新增必填字段、新增枚举取值、更换字段语义都须递增本字段并同步更新 docs/spec.md。"
+    },
+    "id": {
+      "$ref": "#/$defs/sourceId",
+      "description": "来源唯一标识,全局唯一且发布后不再改动;读取方以它作为持久化配置的键,改名须另附旧 id 映射表迁移。"
+    },
+    "name": {
+      "$ref": "#/$defs/i18nName",
+      "description": "来源展示名,至少给出一侧语言;缺失侧由读取方用另一侧补齐。"
+    },
+    "format": {
+      "$ref": "#/$defs/dialect",
+      "description": "该来源的线上协议方言,决定请求体字段名、流式事件结构与错误体形态。"
+    },
+    "endpoints": {
+      "$ref": "#/$defs/endpoints",
+      "description": "端点集合。base 与各端点 path 直接拼接,不做 URL 相对解析。"
+    },
+    "credential": {
+      "$ref": "#/$defs/credential",
+      "description": "凭据随请求发送的位置与格式;本对象只描述形态,不承载密钥内容。"
+    },
+    "capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "uniqueItems": true,
+      "description": "该来源支持的能力及其参数映射,不得为空。每项按 id 判别,未知 id 由读取方按不支持处理;同一 id 至多一条(唯一性由校验脚本按属性判断,uniqueItems 只拦逐字重复)。不在本数组出现的能力一律视为该来源不支持。",
+      "items": {
+        "$ref": "#/$defs/capability"
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "id",
+    "name",
+    "format",
+    "endpoints",
+    "credential",
+    "capabilities"
+  ],
+  "additionalProperties": false,
+  "$comment": "跨字段规则,JSON Schema 表达不了,由 scripts/validate-specs.mjs 的跨字段检查保证:(1) capabilities 内同一 id 至多一条;(2) text:generate 的 stream 须与 format 的帧方言一致(stream 为 none 时豁免):anthropic-compatible 对 sse-anthropic,openai-compatible 与 deepseek-compatible 对 sse-openai;(3) 声明 text:generate 时必须同时声明 prompt:system;(4) 任一能力的 inputs 含 file-id 时 endpoints.files 必须存在;(5) 未声明 vision:image 与 document:read 时 endpoints.files 冗余但不报错;(6) requiredParams 的每个键必须同时出现在 params 中;(7) limits 内每项在给出 max 时 min 不得大于 max,default 必须落在 [min, max] 内(未给 max 时只校验下界);(8) base 末尾不带斜杠、path 以斜杠开头,二者直接拼接即为完整地址,不使用 URL 相对解析。",
+  "examples": [
+    {
+      "schemaVersion": 1,
+      "id": "deepseek",
+      "name": {
+        "zh-CN": "DeepSeek 官方",
+        "en-US": "DeepSeek official"
+      },
+      "format": "deepseek-compatible",
+      "endpoints": {
+        "base": "https://api.deepseek.com",
+        "chat": {
+          "path": "/chat/completions"
+        },
+        "models": {
+          "path": "/models"
+        }
+      },
+      "credential": {
+        "kind": "api-key",
+        "headers": [
+          {
+            "name": "Authorization",
+            "prefix": "Bearer "
+          }
+        ]
+      },
+      "capabilities": [
+        {
+          "id": "text:generate",
+          "stream": "sse-openai",
+          "params": {
+            "maxTokens": "max_tokens",
+            "temperature": "temperature",
+            "topP": "top_p",
+            "stop": "stop"
+          },
+          "limits": {
+            "maxTokens": {
+              "min": 1,
+              "max": 393216
+            },
+            "temperature": {
+              "min": 0,
+              "max": 2,
+              "default": 1
+            }
+          }
+        },
+        {
+          "id": "prompt:system",
+          "mode": "message-role",
+          "role": "system"
+        },
+        {
+          "id": "reasoning:think",
+          "style": "effort-level",
+          "field": "reasoning_effort",
+          "levels": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "defaultLevel": "medium",
+          "responseField": "reasoning_content"
+        },
+        {
+          "id": "tool:web-search",
+          "kind": "server-tool",
+          "requestField": "tools",
+          "names": [
+            "deepseek_web_search"
+          ]
+        },
+        {
+          "id": "tool:read-url",
+          "kind": "server-tool",
+          "requestField": "tools",
+          "names": [
+            "deepseek_read_url"
+          ]
+        }
+      ]
+    }
+  ],
+  "$defs": {
+    "sourceId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,63}$",
+      "description": "小写字母开头,只允许小写字母、数字与连字符,长度 3 到 64;与插件 id、资产包 id 同一形态。取值是合集目录 id 正则的子集,需要同时充当目录名时不会冲突。",
+      "examples": [
+        "deepseek",
+        "openai",
+        "anthropic"
+      ]
+    },
+    "i18nName": {
+      "type": "object",
+      "properties": {
+        "zh-CN": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "\\S",
+          "description": "中文展示名,去首尾空白后不得为空。"
+        },
+        "en-US": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "\\S",
+          "description": "英文展示名,去首尾空白后不得为空。"
+        }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "zh-CN"
+          ]
+        },
+        {
+          "required": [
+            "en-US"
+          ]
+        }
+      ],
+      "additionalProperties": false,
+      "description": "双语文案,至少给出一侧;与插件运行时 meta.json 的 description 同一形态。不接受 zh-CN、en-US 之外的键。"
+    },
+    "dialect": {
+      "type": "string",
+      "enum": [
+        "anthropic-compatible",
+        "openai-compatible",
+        "deepseek-compatible"
+      ],
+      "description": "线上协议方言,只接受这三个取值。anthropic-compatible 指 /v1/messages 形态:x-api-key 鉴权、顶层 system 字段、content 块、具名 SSE 事件(message_start/content_block_delta/message_stop)。openai-compatible 指 /v1/chat/completions 形态:Bearer 鉴权、messages 数组、data: {choices:[{delta}]} 流式帧。deepseek-compatible 指 openai-compatible 的基础字段之外另有官方扩展的形态(如响应字段 reasoning_content、自有服务端工具名)。仅基址或路径不同、协议形态相同者不得另立取值,应作为另一条来源描述。",
+      "examples": [
+        "anthropic-compatible",
+        "deepseek-compatible"
+      ]
+    },
+    "baseUrl": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048,
+      "pattern": "^https?://[^/\\s?#]+(?:/[^?\\s#]*[^/?\\s#])?$",
+      "description": "来源基址:http 或 https 开头的绝对地址,不得带查询串或片段,末尾不带斜杠;端点 path 直接拼在它后面(见顶层 $comment 第 8 条)。本版只允许单值,不提供兜底基址。",
+      "examples": [
+        "https://api.deepseek.com",
+        "https://api.openai.com/v1",
+        "https://api.anthropic.com"
+      ]
+    },
+    "endpointPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048,
+      "pattern": "^/[^\\s?#]*$",
+      "description": "站内路径:以斜杠开头,不含协议、主机、查询串与片段;不接受整段绝对地址,也不接受空串。",
+      "examples": [
+        "/chat/completions",
+        "/v1/messages"
+      ]
+    },
+    "staticHeader": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9-]{0,63}$",
+          "description": "HTTP 头名,大小写不敏感;只允许字母、数字与连字符。"
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "pattern": "^[^\\r\\n]+$",
+          "description": "头值,原样写入,不得含换行;此处只放协议固定值,不得放密钥。"
+        }
+      },
+      "required": [
+        "name",
+        "value"
+      ],
+      "additionalProperties": false,
+      "description": "与密钥无关的固定请求头,例如协议版本协商头 anthropic-version;只在声明它的端点上发送。"
+    },
+    "endpoint": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/endpointPath"
+        },
+        "headers": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "description": "该端点额外的固定请求头,可选;缺省表示不加任何额外头。同一来源需要固定头的端点各自声明,本版没有全局默认头。",
+          "items": {
+            "$ref": "#/$defs/staticHeader"
+          }
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "additionalProperties": false,
+      "description": "单个端点的路径与附加固定头。"
+    },
+    "endpoints": {
+      "type": "object",
+      "properties": {
+        "base": {
+          "$ref": "#/$defs/baseUrl"
+        },
+        "chat": {
+          "$ref": "#/$defs/endpoint",
+          "description": "对话补全端点,必填。"
+        },
+        "models": {
+          "$ref": "#/$defs/endpoint",
+          "description": "模型列表端点,必填;也用于校验密钥可达性。"
+        },
+        "files": {
+          "$ref": "#/$defs/endpoint",
+          "description": "文件端点,可选;仅当某能力的 inputs 含 file-id 时不可缺。"
+        }
+      },
+      "required": [
+        "base",
+        "chat",
+        "models"
+      ],
+      "additionalProperties": false,
+      "description": "端点集合。四个键的含义固定,不接受额外端点;新增端点类型须递增 schemaVersion。"
+    },
+    "credentialHeader": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9-]{0,63}$",
+          "description": "承载密钥的 HTTP 头名,大小写不敏感,例如 x-api-key 或 Authorization。"
+        },
+        "prefix": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "description": "头值前缀,可选;缺省表示密钥原样作为头值。需要分隔空格时把空格写进前缀,例如 Bearer 加一个空格。不用空串表示缺省。"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false,
+      "description": "一个承载密钥的请求头。"
+    },
+    "credential": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "api-key"
+          ],
+          "description": "凭据类型,只接受 api-key;新增类型须递增 schemaVersion 并在 docs/spec.md 补说明。"
+        },
+        "headers": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "description": "承载密钥的请求头,按顺序全部写入;同一来源接受多种鉴权形态时逐项列出。",
+          "items": {
+            "$ref": "#/$defs/credentialHeader"
+          }
+        }
+      },
+      "required": [
+        "kind",
+        "headers"
+      ],
+      "additionalProperties": false,
+      "description": "凭据如何随请求发送。本对象只描述位置与格式,不得写入任何密钥、令牌或证书内容。"
+    },
+    "numericRange": {
+      "type": "object",
+      "properties": {
+        "min": {
+          "type": "number",
+          "description": "允许下界,含端点。"
+        },
+        "max": {
+          "type": "number",
+          "description": "允许上界,含端点。"
+        },
+        "default": {
+          "type": "number",
+          "description": "服务端缺省值,可选;须落在 [min, max] 内。输出上限的取值须为整数。"
+        }
+      },
+      "required": [
+        "min"
+      ],
+      "additionalProperties": false,
+      "description": "一个数值参数的取值范围。min 必填;max 可选,缺省表示上界随模型而变,不给固定值;default 可选。"
+    },
+    "limits": {
+      "type": "object",
+      "properties": {
+        "maxTokens": {
+          "$ref": "#/$defs/numericRange",
+          "description": "输出上限的取值范围,例如 deepseek 为 1..393216。"
+        },
+        "temperature": {
+          "$ref": "#/$defs/numericRange",
+          "description": "温度取值范围,例如 anthropic 为 0..1,openai 与 deepseek 为 0..2。"
+        },
+        "topP": {
+          "$ref": "#/$defs/numericRange",
+          "description": "核采样取值范围。"
+        },
+        "topK": {
+          "$ref": "#/$defs/numericRange",
+          "description": "top_k 取值范围;仅声明 topK 逻辑参数的来源需要填。"
+        }
+      },
+      "minProperties": 1,
+      "additionalProperties": false,
+      "description": "逻辑参数的取值范围,键与 params 的逻辑参数名一一对应;未列出的逻辑参数表示不声明取值边界。本对象只声明边界,不声明默认采样策略。"
+    },
+    "params": {
+      "type": "object",
+      "properties": {
+        "maxTokens": {
+          "$ref": "#/$defs/wireName",
+          "description": "输出上限的线上字段名,可选;anthropic 为 max_tokens 且必填,openai 推理模型为 max_completion_tokens,deepseek 为 max_tokens。"
+        },
+        "temperature": {
+          "$ref": "#/$defs/wireName",
+          "description": "温度的线上字段名,可选。"
+        },
+        "topP": {
+          "$ref": "#/$defs/wireName",
+          "description": "核采样的线上字段名,可选。"
+        },
+        "topK": {
+          "$ref": "#/$defs/wireName",
+          "description": "top_k 的线上字段名,可选;仅 anthropic 系方言有该项。"
+        },
+        "stop": {
+          "$ref": "#/$defs/wireName",
+          "description": "停止词的线上字段名,可选;anthropic 为 stop_sequences,openai 与 deepseek 为 stop。"
+        }
+      },
+      "minProperties": 1,
+      "additionalProperties": false,
+      "description": "逻辑参数名到线上字段名的映射,至少给出一项;未列出的逻辑参数表示该来源不支持该项。键取自固定逻辑参数表,不接受自造键名。系统提示词不在此表,它由 prompt:system 能力声明。"
+    },
+    "wireName": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_.]{0,63}$",
+      "description": "线上字段名,原样写入请求体;不接受空串与中文。",
+      "examples": [
+        "max_tokens",
+        "stop_sequences",
+        "reasoning_effort"
+      ]
+    },
+    "toolName": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_.-]{1,63}$",
+      "description": "服务端工具名,原样写入请求体。",
+      "examples": [
+        "web_search",
+        "deepseek_web_search"
+      ]
+    },
+    "capabilityTextGenerate": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "const": "text:generate"
+        },
+        "stream": {
+          "type": "string",
+          "enum": [
+            "sse-anthropic",
+            "sse-openai",
+            "none"
+          ],
+          "description": "流式响应的帧方言,只接受三个取值。sse-anthropic 为具名事件(message_start/content_block_delta/message_stop);sse-openai 为 data: {choices:[{delta}]} 逐条帧;none 表示只有非流式响应。须与 format 一致(见顶层 $comment 第 2 条),none 除外。"
+        },
+        "params": {
+          "$ref": "#/$defs/params"
+        },
+        "requiredParams": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "description": "必须随每次请求发送的逻辑参数,取自 params 的键;例如 anthropic 的 maxTokens。缺省表示没有必填参数。",
+          "items": {
+            "type": "string",
+            "enum": [
+              "maxTokens",
+              "temperature",
+              "topP",
+              "topK",
+              "stop"
+            ]
+          }
+        },
+        "limits": {
+          "$ref": "#/$defs/limits"
+        }
+      },
+      "required": [
+        "id",
+        "stream"
+      ],
+      "additionalProperties": false,
+      "description": "文本生成能力。三家都有,是唯一必有的能力。"
+    },
+    "capabilityPromptSystemTopLevel": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "const": "prompt:system"
+        },
+        "mode": {
+          "const": "top-level-field",
+          "description": "系统提示词作为请求体的顶层字段,见 anthropic 方言。"
+        },
+        "field": {
+          "$ref": "#/$defs/wireName",
+          "description": "顶层字段名,例如 system。"
+        }
+      },
+      "required": [
+        "id",
+        "mode",
+        "field"
+      ],
+      "additionalProperties": false,
+      "description": "系统提示词以顶层字段承载。"
+    },
+    "capabilityPromptSystemMessage": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "const": "prompt:system"
+        },
+        "mode": {
+          "const": "message-role",
+          "description": "系统提示词作为 messages 数组中的一条消息,见 openai 与 deepseek 方言。"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "system",
+            "developer"
+          ],
+          "description": "消息角色取值,只接受 system 与 developer;选择哪个由来源实现决定,默认 system。"
+        }
+      },
+      "required": [
+        "id",
+        "mode",
+        "role"
+      ],
+      "additionalProperties": false,
+      "description": "系统提示词以消息角色承载。"
+    },
+    "capabilityReasoningToggle": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "const": "reasoning:think"
+        },
+        "style": {
+          "const": "type-toggle",
+          "description": "开关式:一个字段的枚举取值表示开、关与自适应,见 anthropic 的 thinking.type。"
+        },
+        "field": {
+          "$ref": "#/$defs/wireName",
+          "description": "承载开关的字段名,例如 thinking。"
+        },
+        "onValue": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32,
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$",
+          "description": "开启时的字段取值,原样写入,例如 enabled。"
+        },
+        "offValue": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32,
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$",
+          "description": "关闭时的字段取值,原样写入,例如 disabled。"
+        },
+        "adaptiveValue": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32,
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$",
+          "description": "自适应时的字段取值,可选,例如 adaptive;缺省表示该来源没有自适应档。"
+        },
+        "budgetField": {
+          "$ref": "#/$defs/wireName",
+          "description": "思考预算的字段名,可选,例如 budget_tokens;缺省表示预算不可单独设置。"
+        },
+        "budgetMin": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "思考预算下界,可选;anthropic 为 1024。"
+        },
+        "budgetCountsInMaxTokens": {
+          "type": "boolean",
+          "description": "思考预算是否计入输出上限,可选;anthropic 为 true,即预算与正文共享 max_tokens。"
+        }
+      },
+      "required": [
+        "id",
+        "style",
+        "field",
+        "onValue",
+        "offValue"
+      ],
+      "additionalProperties": false,
+      "description": "推理思考能力,开关式。"
+    },
+    "capabilityReasoningEffort": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "const": "reasoning:think"
+        },
+        "style": {
+          "const": "effort-level",
+          "description": "档位式:一个字段取若干档位之一,没有独立的关闭取值,缺省即不开启,见 openai 与 deepseek 的 reasoning_effort。"
+        },
+        "field": {
+          "$ref": "#/$defs/wireName",
+          "description": "承载档位的字段名,例如 reasoning_effort。"
+        },
+        "levels": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "description": "档位取值,按由低到高顺序排列,不得为空且不得重复。",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32,
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$"
+          }
+        },
+        "defaultLevel": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32,
+          "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,31}$",
+          "description": "服务端缺省档位,可选;须是 levels 中的一项。"
+        },
+        "responseField": {
+          "$ref": "#/$defs/wireName",
+          "description": "响应体中思考内容的字段名,可选;deepseek 为 reasoning_content,openai 不返回该项故省略。"
+        }
+      },
+      "required": [
+        "id",
+        "style",
+        "field",
+        "levels"
+      ],
+      "additionalProperties": false,
+      "description": "推理思考能力,档位式。"
+    },
+    "capabilityVisionImage": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "const": "vision:image"
+        },
+        "contentType": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+          "description": "内容块类型取值,原样写入 content:anthropic 为 image,openai 为 image_url。"
+        },
+        "inputs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "description": "图片传入方式,至少一项。base64 指内联编码,url 指远程地址,file-id 指先上传再以标识引用(依赖 endpoints.files)。",
+          "items": {
+            "type": "string",
+            "enum": [
+              "base64",
+              "url",
+              "file-id"
+            ]
+          }
+        },
+        "mediaTypeField": {
+          "$ref": "#/$defs/wireName",
+          "description": "媒体类型字段名,可选;anthropic 为 media_type,openai 由 data URI 自带故省略。"
+        }
+      },
+      "required": [
+        "id",
+        "contentType",
+        "inputs"
+      ],
+      "additionalProperties": false,
+      "description": "图片理解能力。未声明本能力即视为纯文本来源。"
+    },
+    "capabilityDocumentRead": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "const": "document:read"
+        },
+        "contentType": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$",
+          "description": "内容块类型取值,原样写入 content,例如 document。"
+        },
+        "inputs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "description": "文档传入方式,至少一项;file-id 依赖 endpoints.files。",
+          "items": {
+            "type": "string",
+            "enum": [
+              "base64",
+              "url",
+              "file-id"
+            ]
+          }
+        }
+      },
+      "required": [
+        "id",
+        "contentType",
+        "inputs"
+      ],
+      "additionalProperties": false,
+      "description": "文档阅读能力。未声明本能力即视为不能读文档。"
+    },
+    "capabilityToolWebSearch": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "const": "tool:web-search"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "server-tool",
+            "request-tools"
+          ],
+          "description": "server-tool 指由服务端执行、名字由厂商固定;request-tools 指在请求的 tools 字段里声明、由宿主或客户端执行。"
+        },
+        "requestField": {
+          "$ref": "#/$defs/wireName",
+          "description": "承载工具声明的请求字段名,可选,例如 tools。"
+        },
+        "names": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "description": "工具名,不得为空且不得重复,原样写入请求体。",
+          "items": {
+            "$ref": "#/$defs/toolName"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "names"
+      ],
+      "additionalProperties": false,
+      "description": "联网搜索能力。工具名各方言不同,不得跨方言套用。"
+    },
+    "capabilityToolReadUrl": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "const": "tool:read-url"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "server-tool",
+            "request-tools"
+          ],
+          "description": "server-tool 指由服务端执行;request-tools 指在请求的 tools 字段里声明、由宿主或客户端执行。"
+        },
+        "requestField": {
+          "$ref": "#/$defs/wireName",
+          "description": "承载工具声明的请求字段名,可选,例如 tools。"
+        },
+        "names": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "description": "工具名,不得为空且不得重复。",
+          "items": {
+            "$ref": "#/$defs/toolName"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "names"
+      ],
+      "additionalProperties": false,
+      "description": "读取网页能力。"
+    },
+    "capability": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/capabilityTextGenerate"
+        },
+        {
+          "$ref": "#/$defs/capabilityPromptSystemTopLevel"
+        },
+        {
+          "$ref": "#/$defs/capabilityPromptSystemMessage"
+        },
+        {
+          "$ref": "#/$defs/capabilityReasoningToggle"
+        },
+        {
+          "$ref": "#/$defs/capabilityReasoningEffort"
+        },
+        {
+          "$ref": "#/$defs/capabilityVisionImage"
+        },
+        {
+          "$ref": "#/$defs/capabilityDocumentRead"
+        },
+        {
+          "$ref": "#/$defs/capabilityToolWebSearch"
+        },
+        {
+          "$ref": "#/$defs/capabilityToolReadUrl"
+        }
+      ],
+      "description": "一项能力声明;按 id 与同一 id 下的 style 或 mode 判别,各分支字段封闭。新增能力须在此增加分支、补 $defs 并更新 docs/spec.md。能力标识一律 namespace:verb 冒号形态。"
+    }
+  }
+}

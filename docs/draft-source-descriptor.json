@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "id": "deepseek",
+  "name": {
+    "zh-CN": "DeepSeek",
+    "en-US": "DeepSeek"
+  },
+  "format": "anthropic-compatible",
+  "endpoints": {
+    "base": "https://api.deepseek.com",
+    "chat": "/anthropic/v1/messages",
+    "models": "/models",
+    "files": "/anthropic/v1/files"
+  },
+  "credential": {
+    "kind": "api-key",
+    "header": "x-api-key",
+    "prefix": ""
+  },
+  "capabilities": {
+    "text.generate": {
+      "stream": "sse-anthropic",
+      "params": {
+        "maxTokens": "max_tokens",
+        "system": "system",
+        "temperature": "temperature",
+        "topP": "top_p",
+        "stop": "stop_sequences"
+      }
+    },
+    "reasoning.think": {
+      "field": "thinking",
+      "onValue": "enabled",
+      "offValue": "disabled",
+      "budgetField": "budget_tokens"
+    },
+    "vision.image": {
+      "input": "file-id",
+      "mediaTypeField": "media_type"
+    },
+    "document.read": {
+      "input": "file-id"
+    },
+    "tool.web-search": {
+      "kind": "server-tool",
+      "names": [
+        "deepseek_web_search"
+      ]
+    },
+    "tool.read-url": {
+      "kind": "server-tool",
+      "names": [
+        "deepseek_read_url"
+      ]
+    }
+  }
+}
