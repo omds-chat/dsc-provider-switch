@@ -1,7 +1,7 @@
 # 来源描述草案与全生态 Schema 惯例审计报告
 
 > 审计对象：`docs/draft-source-descriptor.json`（57 行，未提交的草案实例）。
-> 对照对象：DeepSeek-Chat-Enhanced、dsc-plugin-template、dsc-humanize-asset-template、awesome-dsc-plugin、awesome-dsc-plugin-set-template、dsc-inner-plugin 的 Schema、校验脚本与规范文本，全部只读。
+> 对照对象：DeepSeek-Chat-Enhanced、dsc-plugin-template、dsc-humanize-asset-template、awesome-dsc-plugin、dsc-plugin-set-template、dsc-inner-plugin 的 Schema、校验脚本与规范文本，全部只读。
 > 产出：本报告 + `docs/source-descriptor.schema.draft.json`（修订后的草案 Schema，含修订后的实例作为 examples）。未创建最终 Schema 目录，未改动任何对照仓库。
 
 ## 一、结论摘要
@@ -21,19 +21,19 @@
 | 编号 | 惯例 | 证据 |
 |:---:|:---:|:---:|
 | C1 | `$schema` 恒为 `https://json-schema.org/draft/2020-12/schema`，且被校验脚本强制 | 全部 23 份 Schema 第 2 行；`dsc-plugin-template/scripts/validate-specs.mjs:339` 校验相等 |
-| C2 | `$id` 恒为 `https://omds-chat.github.io/<仓库>/schemas/<路径>`，且**必须以该文件在仓库内的相对路径结尾** | `dsc-plugin-template/schemas/manifest/plugin-manifest.schema.json:3`；`awesome-dsc-plugin-set-template/schemas/README.md:35`；`validate-specs.mjs:342-346`。DCE 的 `certs/schemas/` 是唯一变体：用 `https://github.com/omds-chat/...` 前缀，同样以文件路径结尾（`certs/schemas/trust-index.schema.json:3`） |
-| C3 | 顶层必有 `title` 与 `description`；`description` 用来指向规范正文，Schema 只表达结构 | `dsc-humanize-asset-template/schemas/asset-package.schema.json:4-5`；`schemas/content/labels.schema.json:5`；`awesome-dsc-plugin-set-template/schemas/README.md:22-23` |
+| C2 | `$id` 恒为 `https://omds-chat.github.io/<仓库>/schemas/<路径>`，且**必须以该文件在仓库内的相对路径结尾** | `dsc-plugin-template/schemas/manifest/plugin-manifest.schema.json:3`；`dsc-plugin-set-template/schemas/README.md:35`；`validate-specs.mjs:342-346`。DCE 的 `certs/schemas/` 是唯一变体：用 `https://github.com/omds-chat/...` 前缀，同样以文件路径结尾（`certs/schemas/trust-index.schema.json:3`） |
+| C3 | 顶层必有 `title` 与 `description`；`description` 用来指向规范正文，Schema 只表达结构 | `dsc-humanize-asset-template/schemas/asset-package.schema.json:4-5`；`schemas/content/labels.schema.json:5`；`dsc-plugin-set-template/schemas/README.md:22-23` |
 | C4 | 每个 object 都写 `additionalProperties: false`，字段封闭被视为契约而非可选项 | `plugin-manifest.schema.json:55`；`schemas/runtime/meta.json:81`；`asset-package.schema.json:63`；`awesome-dsc-plugin/schemas/catalog-index.schema.json:33,89,99,171,181`；`manifest.schema.json:33,66`；反例 `schemas/examples/invalid/meta.extra-field.json` 专门演示多一个字段即失败 |
 | C5 | `required` 逐项显式列出，不用默认值补齐 | `plugin-manifest.schema.json:49-54`；`meta.json:72-80`；`asset-package.schema.json:54-62` |
-| C6 | 结构版本有两种家族，各管一段、不混用：分发清单类用整数 `schemaVersion` + `const`；资产包类用三段数字 `formatVersion` | 整数家族：`awesome-dsc-plugin-set-template/schemas/manifest.schema.json:8-12`（`schemaVersion` + `const 1`）、`awesome-dsc-plugin/schemas/catalog-index.schema.json:8-11`、DCE `certs/schemas/plugin-set-manifest.schema.json:13-16`（`const 1`）、`certs/schemas/trust-index.schema.json:14-17`（`const 2`）；三段数字家族：`asset-package.schema.json:8-11` 与 `dsc-humanize-asset-template/specs/asset-package-spec.md:288-309` |
+| C6 | 结构版本有两种家族，各管一段、不混用：分发清单类用整数 `schemaVersion` + `const`；资产包类用三段数字 `formatVersion` | 整数家族：`dsc-plugin-set-template/schemas/manifest.schema.json:8-12`（`schemaVersion` + `const 1`）、`awesome-dsc-plugin/schemas/catalog-index.schema.json:8-11`、DCE `certs/schemas/plugin-set-manifest.schema.json:13-16`（`const 1`）、`certs/schemas/trust-index.schema.json:14-17`（`const 2`）；三段数字家族：`asset-package.schema.json:8-11` 与 `dsc-humanize-asset-template/specs/asset-package-spec.md:288-309` |
 | C7 | 未知结构版本一律按不可读处理，不做静默升级 | `DeepSeek-Chat-Enhanced/src/components/dsc-market/removed.ts:88`；同仓库 `src/services/trust/fetch.ts:84`、`src/services/integrity/manifest.ts:125`；`src/components/dsc-market/README.md:175`（其它版本按不可读处理）；`asset-package-spec.md:307` |
 | C8 | 枚举封闭，且在 `description` 里写明「不接受……之外的取值」 | `plugin-manifest.schema.json:93-111`；`asset-package.schema.json:83-92`；`meta.json:114-127` |
 | C9 | 能力/贡献点标识用 `namespace:verb` 冒号形式，未知取值按未知能力拒绝 | `DeepSeek-Chat-Enhanced/src/components/dsc-core/types.ts:27-38`（`sessions:list`、`net:fetch`、`chat:request`）；`plugin-manifest.schema.json:95-104`；`src/components/dsc-core/types.ts:21` 注释「插件申请时按未知能力拒绝」 |
-| C10 | `pattern` 一律锚定 `^...$`、无 flags（JSON Schema 无 flags）、与校验脚本常量逐字一致；大小写不敏感需求写成 `[a-zA-Z0-9]` 并配 `maxLength` | `awesome-dsc-plugin-set-template/schemas/README.md:36`；`plugin-manifest.schema.json:59,68,77`；`versions.schema.json:31` |
+| C10 | `pattern` 一律锚定 `^...$`、无 flags（JSON Schema 无 flags）、与校验脚本常量逐字一致；大小写不敏感需求写成 `[a-zA-Z0-9]` 并配 `maxLength` | `dsc-plugin-set-template/schemas/README.md:36`；`plugin-manifest.schema.json:59,68,77`；`versions.schema.json:31` |
 | C11 | 复用一律走本地 `$defs` + 内部 `$ref`，Schema 自包含，不跨文件引用 | `schemas/README.md:36`；`trust-index.schema.json:41-67`；`asset-package.schema.json:64-93` |
 | C12 | 示例两处组织：Schema 内联 `examples`（1 条完整实例）；仓库内 `schemas/examples/<对象>.<名称>.json` 为正例、`schemas/examples/invalid/<对象>.<理由>.json` 为反例，反例只演示一条规则、与正例同构 | 内联：`manifest.schema.json:34-45`、`catalog-index.schema.json:182-221`、`catalog-plugin.schema.json:53-62`、`$defs` 级 `examples`（`plugin-manifest.schema.json:61-64`）；文件：`validate-specs.mjs:18-19,380,422-443` 与 `schemas/examples/` 实际文件（14 个样例中 11 个反例、3 个正例，反例文件名形如 `manifest.bad-id.json`、`meta.extra-field.json`） |
 | C13 | 版本演进要成文，并有三件套：规范版本、格式/结构版本、Schema 路径锁定 | `asset-package-spec.md:288-309`（三版本各管一段 + 次/主/修订三档规则）；`dsc-plugin-template/specs/spec-version.json`（`spec_version`、`dsc_core`、`schemas` 映射）；`dsc-humanize-asset-template/specs/spec-version.json` 增加 `format_version` |
-| C14 | Schema 是书面契约、脚本是权威实现，二者必须同改；Schema 表达不了的约束只由脚本保证，并写进 `description` 或 `$comment` | `awesome-dsc-plugin-set-template/schemas/README.md:22-30`；`versions.schema.json:26`（`$comment` 记录 uniqueItems 与降序的分工） |
+| C14 | Schema 是书面契约、脚本是权威实现，二者必须同改；Schema 表达不了的约束只由脚本保证，并写进 `description` 或 `$comment` | `dsc-plugin-set-template/schemas/README.md:22-30`；`versions.schema.json:26`（`$comment` 记录 uniqueItems 与降序的分工） |
 | C15 | 组织校验器只认 31 个关键字，出现其它关键字直接报错；因此 `patternProperties`、`propertyNames`、`if/then` 不可用 | `dsc-plugin-template/scripts/validate-specs.mjs:22-54`（白名单）与 `:294-298`（未支持关键字即 error） |
 | C16 | 双语对象惯用形态是 `{zh-CN, en-US}` + `anyOf` 至少一侧 + `additionalProperties: false`，缺失侧由读取方补齐 | `dsc-plugin-template/schemas/runtime/meta.json:134-159`；`DeepSeek-Chat-Enhanced/src/components/dsc-market/types.ts:37`（`LocalizedText`）；`src/components/dsc-market/removed.ts:61-75`（单语字符串或双语对象，缺失侧互补） |
 | C17 | 「来源」在生态内的既有建模是 `{ id, name, baseUrls: string[], builtin }`：id 与合集目录名一致，baseUrls 为有序兜底数组，持久化配置容忍解析并带旧 id 迁移表 | `src/components/dsc-market/types.ts:21-27`；`src/components/dsc-market/sources.ts:8-23`（规范化：去查询与片段、补尾斜杠）、`:41-47`（`LEGACY_IDS`）、`:51-70`（`DEFAULT_SOURCES` 优先级）、`:119-150`（`parseSources` 容错） |
@@ -165,7 +165,7 @@ A1 列出全生态 Schema 文件（只读盘点）：
 ```
 $ find DeepSeek-Chat-Enhanced/certs/schemas dsc-plugin-template/schemas \
        dsc-humanize-asset-template/schemas awesome-dsc-plugin/schemas \
-       awesome-dsc-plugin-set-template/schemas -name '*.json' | sort | wc -l
+       dsc-plugin-set-template/schemas -name '*.json' | sort | wc -l
 37   # 其中 23 份 Schema（含两份 runtime/meta.json），14 份 schemas/examples 样例
 $ find dsc-inner-plugin -name "*.schema.json" | wc -l
 0    # dsc-inner-plugin 无 Schema，只有 dist/ 产物与设计文档，故只作文档对照
@@ -220,13 +220,13 @@ example[1] example-openai-gateway: 通过
 |:---:|:---:|:---:|
 | $schema/$id/title 三件套 | `dsc-plugin-template/schemas/manifest/plugin-manifest.schema.json:2-5` | C1、C2、C3 |
 | 字段封闭与 required | `plugin-manifest.schema.json:49-55`、`schemas/runtime/meta.json:72-81` | C4、C5、F6 |
-| 整数 schemaVersion + const | `awesome-dsc-plugin-set-template/schemas/manifest.schema.json:8-12`、`certs/schemas/trust-index.schema.json:14-17` | C6、F13 |
+| 整数 schemaVersion + const | `dsc-plugin-set-template/schemas/manifest.schema.json:8-12`、`certs/schemas/trust-index.schema.json:14-17` | C6、F13 |
 | 未知版本即拒绝 | `src/components/dsc-market/removed.ts:88`、`src/services/trust/fetch.ts:84` | C7、F13 |
 | 能力标识冒号形态 | `src/components/dsc-core/types.ts:27-38` | C9、F2 |
-| 正则与脚本逐字一致 | `awesome-dsc-plugin-set-template/schemas/README.md:36`、`versions.schema.json:31` | C10 |
+| 正则与脚本逐字一致 | `dsc-plugin-set-template/schemas/README.md:36`、`versions.schema.json:31` | C10 |
 | 示例与反例组织 | `validate-specs.mjs:18-19,380,422-443`、`schemas/examples/invalid/` | C12、问题 3 |
 | 三版本演进 | `dsc-humanize-asset-template/specs/asset-package-spec.md:288-309` | C13、F13 |
-| Schema 与脚本分工 | `awesome-dsc-plugin-set-template/schemas/README.md:22-30`、`versions.schema.json:26` | C14、F16 |
+| Schema 与脚本分工 | `dsc-plugin-set-template/schemas/README.md:22-30`、`versions.schema.json:26` | C14、F16 |
 | 关键字白名单 | `validate-specs.mjs:22-57,294-298` | C15、F1 |
 | 双语对象 idiom | `dsc-plugin-template/schemas/runtime/meta.json:134-159`、`src/components/dsc-market/types.ts:37` | C16、F5 |
 | 来源建模与兜底 | `src/components/dsc-market/sources.ts:8-23,41-47,51-70,119-150`、`types.ts:21-27` | C17、F8、F12、N2、N3 |
