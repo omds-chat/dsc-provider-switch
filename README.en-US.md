@@ -2,7 +2,7 @@
 
 [简体中文](README.md) | [English]
 
-dsc-provider-switch is a dsc plugin that picks a provider endpoint for every model capability along capability dimensions: the plugin ships three built-in endpoint descriptors, registers them with the host through `context.provider.registerSource` on activation, and provides two `context.provider.run` wrappers for its own calls, one for text generation and one for model listing. Each descriptor declares which model capabilities the endpoint supports (text generation, system prompt, thinking, vision input and so on), endpoints slot in by capability dimension, and the host decides which one to use.
+dsc-provider-switch is a dsc plugin that picks a provider endpoint for every model capability along capability dimensions: the plugin ships three built-in endpoint descriptors, registers them with the host through `context.provider.registerSource` on activation, and provides two `context.provider.run` wrappers for its own calls, one for text generation and one for model listing. Each descriptor declares which model capabilities the endpoint supports (text generation, system prompt, thinking, vision input and so on), endpoints slot in by capability dimension, and the host decides which one to use. The plugin also declares its settings surface through `settings:surface`: endpoint toggles, API keys and custom compatible-endpoint base URLs are all filled in on the host settings page.
 
 The documentation index lives in [docs/README.md](docs/README.md); the settled mechanics and their rationale are recorded in [docs/design/provider-sources.md](docs/design/provider-sources.md) (Chinese).
 
@@ -11,8 +11,8 @@ The documentation index lives in [docs/README.md](docs/README.md); the settled m
 | Item | Description |
 |:---:|:---:|
 | Audience | dsc users and hosts that need to pick a provider endpoint per model capability |
-| Registration | Registers the built-in endpoint descriptors with the host via `context.provider.registerSource` on activation |
-| Wrappers | `runTextGenerate` and `runModelsList`, which validate a protocol-agnostic request against the descriptor before handing it to `context.provider.run` |
+| Registration | Registers the built-in endpoint descriptors with the host via `context.provider.registerSource` on activation, and the settings field descriptors via `settings:surface` for the host settings page |
+| Wrappers | `runTextGenerate` and `runModelsList`, which validate a protocol-agnostic request against the descriptor, filter endpoints disabled in settings, and hand the payload to `context.provider.run` |
 | Not done | Never rewrites any host conversation request; does not pick endpoints; never reads, stores or passes any credentials |
 
 ## Built-in endpoints
@@ -41,9 +41,10 @@ Why DeepSeek uses the `anthropic-compatible` dialect and how dialects map to eng
 
 ## Usage
 
-- **Endpoints register automatically after installation.** Activation registers the three endpoints in the built-in order; declaring makes no network request. Whether an endpoint is enabled and how credentials are filled in is decided by the host and the user; the plugin never sees the key.
-- **Two wrappers for callers.** `runTextGenerate` validates parameter declarations, value ranges and capability support before assembling the payload, and throws a `SourceAssemblyError` with a `code` on failure; `runModelsList` collapses the model list into an array of model ids. Engine errors are never swallowed, retried or downgraded — they are rethrown to the caller as-is.
-- **The settings UI awaits a host surface.** Endpoint listing, enable/disable toggles, key input and endpoint picking have no plugin-side entry today: the host does not yet expose a plugin settings capability, and the plugin does not build its own DOM. The gap list lives in section 6 of [docs/design/provider-sources.md](docs/design/provider-sources.md) (Chinese).
+- **Endpoints register automatically after installation.** Activation registers the three endpoints in the built-in order; declaring makes no network request. The plugin never sees credentials — keys are read by the engine only at execution time.
+- **Configure on the host settings page.** Installed plugin list → click the plugin name to open its detail page → the host renders the form from the descriptor. Each built-in endpoint gets an enable toggle and an API Key input (write-only; whether a key is configured is known to the host alone). Two optional inputs, "custom OpenAI-compatible endpoint baseUrl" and "custom Anthropic-compatible endpoint baseUrl", register a custom endpoint when filled in and register nothing when left empty. Setting values are persisted by the host and take effect after saving.
+- **Two wrappers for callers.** `runTextGenerate` validates parameter declarations, value ranges and capability support before assembling the payload, and throws a `SourceAssemblyError` with a `code` on failure; before every run it re-reads the settings and filters disabled endpoints (the host has no change-push capability this round, so the plugin polls the settings before each run) and refuses a disabled endpoint with `endpoint-disabled` without issuing a request or spending quota. `runModelsList` collapses the model list into an array of model ids. Engine errors are never swallowed, retried or downgraded — they are rethrown to the caller as-is: an endpoint without a key fails at execution time with `credential-missing`.
+- **Registration timing of custom endpoints.** Custom endpoints are registered from the settings values read at activation; after a settings-page edit, the run-side enable state and descriptor selection follow the settings immediately, but the registration in the engine registry waits until the plugin is reactivated. The gap list lives in section 6 of [docs/design/provider-sources.md](docs/design/provider-sources.md) (Chinese).
 
 ## Repository layout
 
@@ -74,17 +75,19 @@ dsc-provider-switch/
 ├── scripts/
 │   ├── test/
 │   │   ├── ts-hooks.mjs      # loader hook so tests import .ts sources directly
-│   │   └── sources.test.ts   # tests for built-in descriptors, conversion and wrappers
+│   │   ├── sources.test.ts   # tests for built-in descriptors, conversion and wrappers
+│   │   └── settings.test.ts  # tests for the settings surface, enable filtering and missing-key handling
 │   └── validate-specs.mjs    # zero-dependency spec validation script
 ├── specs/                    # spec copies: runtime spec, development spec and version info
 └── src/
-    ├── index.ts              # activate and deactivate entry; registers built-in endpoints on activation
+    ├── index.ts              # activate and deactivate entry; registers built-in endpoints and declares the settings surface on activation
     ├── manifest.ts           # runtime manifest
     ├── types.ts              # contract types
     └── sources/
         ├── descriptor.ts     # dialect descriptor to engine CoreSourceDescriptor
         ├── register.ts       # built-in endpoint registration
         ├── run.ts            # the two wrappers for text generation and model listing
+        ├── settings.ts       # settings surface: field descriptors, enable state and custom endpoints
         └── validate.ts       # runtime validation before registration
 ```
 

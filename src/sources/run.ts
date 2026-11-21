@@ -4,11 +4,16 @@
  * 组装是纯函数:把与协议无关的请求对照描述的 text:generate 声明逐项校验,
  * 产出引擎载荷;执行把载荷交给 context.provider.run,引擎选端点、读凭证、
  * 调内核,插件拿不到端点描述里的凭证与请求对象。
+ * 执行前按设置过滤停用端点:每次 run 前读一遍 settings.values() 推导启停
+ * (宿主没有变更推送),目标端点被停用时按 endpoint-disabled 拒绝,不发 run、不花额度。
+ * 密钥的存在性不参与插件侧判定:secret 字段在 values() 里完全不出现,
+ * 无 Key 的端点由引擎在执行时抛 credential-missing,本层原样上抛。
  * 引擎错误(PluginCapabilityError、PluginRateLimitError、PluginProviderRunError)原样抛出,
  * 本层不吞、不重试、不降级。
  */
 
-import { DEEPSEEK_ANTHROPIC_SOURCE, type SourceDescriptor } from './descriptor.js'
+import { BUILTIN_SOURCES, type SourceDescriptor } from './descriptor.js'
+import { readEndpointState } from './settings.js'
 import { findReasoningThinkCapability, findTextGenerateCapability, findToolCapability } from './validate.js'
 import type {
   PluginContext,
@@ -24,6 +29,7 @@ export type AssemblyErrorCode =
   | 'param-out-of-range'
   | 'param-required-missing'
   | 'capability-unsupported'
+  | 'endpoint-disabled'
 
 /** 组装失败;code 供调用方判定,message 面向日志 */
 export class SourceAssemblyError extends Error {
@@ -180,19 +186,56 @@ export const assembleTextGeneratePayload = (
 const isNonEmpty = (value: unknown): value is string => typeof value === 'string' && value.trim() !== ''
 
 /**
+ * 按设置解析本次执行的目标描述。
+ *
+ * - 显式传入的描述照旧作为校验口径:若它是内置端点且被设置停用,
+ *   按 endpoint-disabled 拒绝,不悄悄换端点(调用方的显式意图不覆盖停用开关);
+ *   显式传自定义端点或第三方描述不查开关,按原样放行。
+ * - 未传入时按「启用的内置端点(优先级顺序)+ 自定义端点」取第一个:
+ *   自定义端点没有独立开关,注册即视为启用,排在全部内置端点之后。
+ * - 全部停用(内置全关且没有可用的自定义端点)按 endpoint-disabled 拒绝。
+ *
+ * 目标描述只决定本插件的校验口径与启停门槛;引擎仍按注册表自行选端点,
+ * 插件不能指定执行端点,见设计文档第六节的端点选择缺口。
+ */
+export const resolveTargetDescriptor = (
+  context: PluginContext,
+  preferred?: SourceDescriptor,
+): SourceDescriptor => {
+  const state = readEndpointState(context)
+  if (preferred !== undefined) {
+    const isBuiltin = BUILTIN_SOURCES.some((builtin) => builtin.id === preferred.id)
+    if (isBuiltin && !state.enabledBuiltinIds.includes(preferred.id)) {
+      throw new SourceAssemblyError('endpoint-disabled', '端点 ' + preferred.id + ' 已被设置停用')
+    }
+    return preferred
+  }
+  const candidates = [
+    ...BUILTIN_SOURCES.filter((descriptor) => state.enabledBuiltinIds.includes(descriptor.id)),
+    ...state.customSources,
+  ]
+  const first = candidates[0]
+  if (first === undefined) {
+    throw new SourceAssemblyError('endpoint-disabled', '全部端点已被设置停用,无法执行')
+  }
+  return first
+}
+
+/**
  * 按描述执行一次文本生成。
  *
- * descriptor 缺省用 deepseek-anthropic:引擎按「该能力的第一个端点」选择执行端点,
- * 本插件按内置顺序先注册 deepseek-anthropic,校验口径与预期选择一致;
- * 其他插件若抢先声明了端点,选择会变,limits 校验以描述为准的口径不变。
- * 引擎错误原样抛出:凭证、限流、协议错误由调用方按 error.code 处理。
+ * descriptor 缺省按 resolveTargetDescriptor 选:设置全默认时取 deepseek-anthropic
+ * (本插件按内置顺序先注册它,校验口径与引擎「该能力的第一个端点」的预期选择一致);
+ * 停用或启用了别的端点时取第一个启用的端点,limits 校验以该端点的描述为准。
+ * 引擎错误原样抛出:凭证缺失(credential-missing)、限流、协议错误由调用方按 error.code 处理。
  */
 export const runTextGenerate = async (
   context: PluginContext,
   request: TextGenerateRequest,
-  descriptor: SourceDescriptor = DEEPSEEK_ANTHROPIC_SOURCE,
+  descriptor?: SourceDescriptor,
 ): Promise<ProviderRunResult> => {
-  const payload = assembleTextGeneratePayload(descriptor, request)
+  const target = resolveTargetDescriptor(context, descriptor)
+  const payload = assembleTextGeneratePayload(target, request)
   return context.provider.run('text.generate', payload)
 }
 
@@ -200,9 +243,16 @@ export const runTextGenerate = async (
  * 按当前选中的端点取一次模型清单。
  *
  * 载荷没有可选参数;结果只保留模型 id,其余字段不进本层。
+ * descriptor 缺省按 resolveTargetDescriptor 做一次启停门槛判定:
+ * 目标端点全部停用或显式传入的端点已停用时拒绝,不发 run;
+ * 引擎在执行期仍按注册表自行选端点,插件不能指定。
  * 引擎错误原样抛出。
  */
-export const runModelsList = async (context: PluginContext): Promise<readonly string[]> => {
+export const runModelsList = async (
+  context: PluginContext,
+  descriptor?: SourceDescriptor,
+): Promise<readonly string[]> => {
+  resolveTargetDescriptor(context, descriptor)
   const result = await context.provider.run('models.list', {})
   if (result.kind !== 'models') {
     throw new SourceAssemblyError('invalid-request', 'models.list 返回了非模型清单结果')

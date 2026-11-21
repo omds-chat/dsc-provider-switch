@@ -296,11 +296,87 @@ export const ANTHROPIC_SOURCE: SourceDescriptor = {
   ],
 }
 
+/* ---------- 自定义端点模板 ---------- */
+
+/**
+ * 自定义端点模板,按设置里的 baseUrl 实例化后注册与校验。
+ * 模板只声明 text:generate 与 prompt:system 的最小能力集:不带 limits
+ * (自定义网关的取值范围不可知,交由端点自己拒绝),不声明 reasoning 与
+ * 工具能力(未经验证的能力不进引擎清单)。鉴权形态按方言取标准写法:
+ * OpenAI 兼容走 Authorization: Bearer,Anthropic 兼容走 x-api-key。
+ * base 占位值只是让模板通过结构校验;baseUrl 留空时不实例化,不注册。
+ */
+export const CUSTOM_OPENAI_SOURCE: SourceDescriptor = {
+  schemaVersion: 1,
+  id: 'custom-openai',
+  name: {
+    'zh-CN': '自定义 OpenAI 兼容端点',
+    'en-US': 'Custom OpenAI-compatible endpoint',
+  },
+  format: 'openai-compatible',
+  endpoints: {
+    base: 'https://custom-openai.invalid',
+    chat: { path: '/chat/completions' },
+    models: { path: '/models' },
+  },
+  credential: {
+    kind: 'api-key',
+    headers: [{ name: 'Authorization', prefix: 'Bearer ' }],
+  },
+  capabilities: [
+    {
+      id: 'text:generate',
+      stream: 'sse-openai',
+      params: {
+        maxTokens: 'max_tokens',
+        temperature: 'temperature',
+        topP: 'top_p',
+        stop: 'stop',
+      },
+    },
+    { id: 'prompt:system', mode: 'message-role', role: 'system' },
+  ],
+}
+
+export const CUSTOM_ANTHROPIC_SOURCE: SourceDescriptor = {
+  schemaVersion: 1,
+  id: 'custom-anthropic',
+  name: {
+    'zh-CN': '自定义 Anthropic 兼容端点',
+    'en-US': 'Custom Anthropic-compatible endpoint',
+  },
+  format: 'anthropic-compatible',
+  endpoints: {
+    base: 'https://custom-anthropic.invalid',
+    chat: { path: '/v1/messages' },
+    models: { path: '/v1/models' },
+  },
+  credential: {
+    kind: 'api-key',
+    headers: [{ name: 'x-api-key' }],
+  },
+  capabilities: [
+    {
+      id: 'text:generate',
+      stream: 'sse-anthropic',
+      params: {
+        maxTokens: 'max_tokens',
+        temperature: 'temperature',
+        topP: 'top_p',
+        stop: 'stop_sequences',
+      },
+    },
+    { id: 'prompt:system', mode: 'top-level-field', field: 'system' },
+  ],
+}
+
 /**
  * 激活时按顺序注册的内置端点。
  * 顺序即引擎注册表的声明顺序:引擎按「该能力的第一个端点」选择执行端点,
  * deepseek-anthropic 排第一,作为本插件的默认端点。
- * doubao 描述(schemas/examples/doubao.descriptor.json)只作方言示例,不内置注册。
+ * doubao 描述(schemas/examples/doubao.descriptor.json)只作方言示例,不内置注册;
+ * 自定义端点模板也不在 BUILTIN_SOURCES 里:它们不是优先级候选,
+ * 只有设置里填了 baseUrl 才实例化注册,排在全部内置端点之后。
  */
 export const BUILTIN_SOURCES: readonly SourceDescriptor[] = [
   DEEPSEEK_ANTHROPIC_SOURCE,

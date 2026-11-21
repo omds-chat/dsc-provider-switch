@@ -1,6 +1,6 @@
 # 供应端点注册与调用封装设计
 
-> 状态:内置端点、注册、运行时校验与两条封装已落地;端点选择、密钥填写与设置控件待宿主表面,见第六节缺口清单。
+> 状态:内置端点、注册、运行时校验、两条封装与设置表面(settings:surface)已落地;端点选择语义、设置值变更推送与编辑后的重新注册时机仍是缺口,见第六节缺口清单。
 > 本文记录机制与取舍理由;描述文件的结构口径见 [../spec.md](../spec.md),规范与 Schema 见 [../../specs/README.md](../../specs/README.md);三者冲突时以实现为准并当轮对齐。
 
 ## 一、定位与边界
@@ -10,8 +10,9 @@ dsc-provider-switch 把「一个模型来源的端点描述」做成可注册的
 | 做 | 不做 |
 |:---:|:---:|
 | 内置三份端点描述并在激活时注册 | 不改写宿主的任何一次会话请求:不申请 `chat:request`,不声明挂载点 |
-| 提供文本生成与模型列表两条执行封装 | 不做端点选择:选择权在宿主,本版取注册表里该能力的第一个端点 |
-| 注册前对内置描述做一次运行时校验 | 不读、不存、不传任何密钥:凭证由用户填写,引擎在执行时读取,插件拿不到 |
+| 提供文本生成与模型列表两条执行封装,执行前按设置过滤停用端点 | 不做端点选择:选择权在宿主,本版取注册表里该能力的第一个端点 |
+| 经 `settings:surface` 登记设置表面 | 不读、不存、不传任何密钥:凭证由用户在宿主设置页填写,引擎在执行时读取,插件连「是否已配置」都看不到 |
+| 注册前对内置描述做一次运行时校验 | 不自行造 DOM:字段描述交宿主渲染,插件不碰控件、样式与 i18n |
 | 记录方言与引擎协议格式之间的映射 | 不做通用联网:只能打到注册表里的端点,不走 `net:fetch` |
 
 两条能力分开申请的理由与上游一致:声明只交描述,执行会花用户填的 Key 与端点额度,授权单位不该相同(`provider:source` 限登记 50 次/10 秒,`provider:run` 限执行 10 次/10 秒,单次建立调用 15 秒,流式回流惰性产出不占该预算)。
@@ -86,15 +87,36 @@ dsc-provider-switch 把「一个模型来源的端点描述」做成可注册的
 
 系统提示词的落位(`prompt:system` 的两种 mode)不由封装分支:载荷只有一份与协议无关的 `system` 字符串,顶层字段还是 messages 里的一条消息由内核按 format 组装,描述里的 `prompt:system` 声明用于校验与文档,不参与分支。
 
+### 设置表面与启停过滤
+
+宿主的插件设置表面(`settings:surface`,实现在引擎 `pluginSettings.ts`)已落地,本插件按它接通端点配置:
+
+| 环节 | 落点 | 说明 |
+|:---:|:---:|:---|
+| 字段描述 | `src/sources/settings.ts` 的 `SETTING_DESCRIPTOR` | 8 个字段:每个内置端点一个 `switch`(默认启用)与一个 `secret`(API Key,无默认值),加两个可选 `text`(自定义 OpenAI/Anthropic 兼容端点 baseUrl,默认空串,留空即不注册)。label 由插件直给,不占用宿主字典的 labelKey |
+| 登记 | `activate` → `registerSettingsSurface` | 与 `registerSource` 同法:只登记描述、不交控件;引擎整份拒绝(如 `PluginSettingsError`)时只写日志继续,不拖住端点注册;释放函数随引擎 disposer 集合,停用随引擎清理 |
+| 读侧 | `context.settings.values()` | 只读自身命名空间:覆盖值优先,否则默认值;`secret` 字段完全不返回,连「是否已配置」也不可见 |
+| 执行过滤 | `run.ts` 的 `resolveTargetDescriptor` | 每次 run 前重读 `values()` 推导启停:目标端点被停用按 `endpoint-disabled` 拒绝,不发 run、不花额度;未传描述时取「启用的内置端点 + 自定义端点」的第一个,全部停用同样拒绝 |
+| 自定义端点 | `CUSTOM_OPENAI_SOURCE` / `CUSTOM_ANTHROPIC_SOURCE` 模板 | 按设置的 baseUrl 实例化(去空白与尾部斜杠),过一遍 `validateSourceDescriptor` 后注册;模板只声明 `text:generate` 与 `prompt:system` 的最小能力集,不带 limits 与未经验证的能力 |
+
+可用性判定分两层,口径刻意不重叠:
+
+- **插件层只判启停。** 开关字段的读取口径是 `!== false` 即启用:缺省与类型异常都按默认启用,设置读取失败(如能力异常)时整份按未配置处理,不让设置表面的故障挡住执行主链路。
+- **引擎层判密钥。** `secret` 字段对插件完全不可见,插件不猜、也不问「有没有 Key」;无 Key 的端点由引擎在执行时抛 `PluginProviderRunError` 的 `credential-missing`,两条封装原样上抛。停用优先于凭证:端点被停用时连执行都不发起,轮不到凭证判定。
+
+两条能力分开申请的理由不变;`settings:surface` 单独第三条:它只交描述,写侧在宿主的 `engine.pluginSettings(pluginId)` 门面,插件读不到密钥,与前两条互不授受。
+
 ## 六、缺口与未定稿
 
 | 缺口 | 现状 | 需要什么 |
 |:---:|:---|:---|
-| **设置控件待宿主表面** | 宿主还没有提供插件设置界面能力:端点列表展示、启停切换、密钥填写、端点选择都不存在插件侧入口。插件不自行造 DOM,也不申请 `net:fetch` 或读取宿主内部状态来绕过 | 宿主的插件设置表面;落地后把密钥填写与端点启停接进宿主既有文案键,本插件只交描述与封装 |
-| 端点选择语义 | 本版引擎取注册表里该能力的第一个端点,插件不能指定端点;多插件同时声明时归属随激活顺序变化,引擎文档已把这列为待决项 | 宿主明确「可选集合按插件限定」还是「由用户指定本次用哪个端点」 |
-| `openai-chat` 执行缺口 | 内核没有 `openai-chat` 的执行分支,内置的 openai 端点登记后今天调不通;转换层与校验已就绪 | 内核补齐 `openai-chat` 分支前,openai 端点仅作声明占位 |
+| **设置值变更推送待宿主** | 宿主本轮没有变更推送能力:`settings.register` 只登记描述,没有值变化的回调或订阅。插件不轮询后台、也不自建缓存,而是在两条封装里每次 run 前重读一遍 `context.settings.values()`;启停过滤因此是准时的,但代价是每次执行多一次设置读取(同窗口 60 次/10 秒的限流内) | 宿主提供设置值变更事件或回调;落地后封装可改为登记回调 + 缓存,去掉逐次读取 |
+| **编辑后的重新注册时机** | 自定义端点按激活时的设置值注册进引擎注册表;设置页改动后,执行侧(`resolveTargetDescriptor`)立即跟随新值,但注册表里的登记还是激活时的旧值——填了 baseUrl 的自定义端点要等插件重新激活才进注册表,取消填写的自定义端点登记也不会撤销 | 宿主提供重新激活或声明刷新途径;落地后 `registerCustomSources` 可在变更时重跑 |
+| **自定义端点没有密钥字段** | 设置表面只给两个自定义 baseUrl 文本输入,没有对应的 `secret` 字段:用户填了 baseUrl 却无处填 Key,自定义端点执行时必然报 `credential-missing`;内置端点的密钥字段清单按任务口径固定为三条,不擅自扩 | 确认自定义端点的密钥填写口径:补两个 `secret` 字段,或宿主把凭证填写统一收进端点详情页 |
+| 端点选择语义 | 本版引擎取注册表里该能力的第一个端点,插件不能指定端点;多插件同时声明时归属随激活顺序变化,引擎文档已把这列为待决项。本插件的启停过滤只能决定「要不要拒绝」,不能决定「用哪个端点」 | 宿主明确「可选集合按插件限定」还是「由用户指定本次用哪个端点」 |
+| `openai-chat` 执行缺口 | 内核没有 `openai-chat` 的执行分支,内置的 openai 端点与自定义 OpenAI 兼容端点登记后今天调不通;转换层与校验已就绪 | 内核补齐 `openai-chat` 分支前,这两类端点仅作声明占位 |
 | doubao 未内置 | `schemas/examples/doubao.descriptor.json` 已按调研落成方言示例,但豆包的 `reasoning:think` 形态(type-toggle 加 effort-level 并存、responseField)超出本版 Schema 的单分叉表达,未内置注册 | Schema 演进后再评估;见 docs/spec.md 第八节 |
-| 引擎 Schema 未收录 `provider:run` | 清单与 meta Schema 的能力枚举只到 `provider:source`;引擎实现已含 `provider:run` | 上游同步 Schema 枚举;差异已记入 specs/README.md 的「已知差异」表 |
+| 引擎 Schema 未收录 `provider:run` 与 `settings:surface` | 清单与 meta Schema 的能力枚举既没有 `provider:run` 也没有 `settings:surface`;引擎能力表已含两者 | 上游同步 Schema 枚举;差异已记入 specs/README.md 的「已知差异」表 |
 
 ## 七、与宿主实现的对齐依据
 
@@ -105,3 +127,6 @@ dsc-provider-switch 把「一个模型来源的端点描述」做成可注册的
 | 执行错误码 | `dsc-plugin-engine/providerRun.ts` 的七类 `ProviderRunErrorCode` |
 | 流式事件与模型清单形态 | `dsc-core/sources.ts`:text / thinking / title / end 四类事件;models 只含 id |
 | DeepSeek Anthropic 形态路径与鉴权 | `services/api/client.ts` 第 15 行(/anthropic/v1)、第 85 行(x-api-key)、`verifyApiKey`(`GET /models`) |
+| `settings:surface` 能力与上下文成员 | 引擎 `dsc-plugin-engine/capabilities.ts` 的 'settings:surface' 策略行(登记与读取共用 60 次/10 秒)与 `settings.register` / `settings.values` 的装配;`types.ts` 的 `SettingsCapability` |
+| 设置字段的类型与校验 | 引擎 `dsc-plugin-engine/pluginSettings.ts`:`SettingFieldType` 五类、`SETTING_KEY_PATTERN`、secret 无默认值(default-forbidden)、非 secret 必有 default(invalid-default)、上限 32 字段 / 8 KB |
+| 值的两层语义与 secret 不可见 | `pluginSettings.ts` 的 `pluginSettingValuesForPlugin`:secret 字段对插件完全不返回;`PluginSettingsFacade.values()` 的 `secretConfigured` 只给宿主门面,不进插件上下文 |

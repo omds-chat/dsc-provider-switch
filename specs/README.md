@@ -48,6 +48,7 @@ node scripts/validate-specs.mjs <meta.json> --schema meta # 校验单个运行�
 | `meta.json` 的 `mounts` | 引擎用户指南写「`meta.json` 写了 `mounts` 就原样带进清单」 | 离线包预检只取 `capabilities` 与 `dependencies.dsc`,不读 `mounts`;市场解析 `meta.json` 时读它并写进清单的 `mounts`,缺省时由产物导出的清单补齐 | 按实现分别记述两条安装路径,写进[开发规范](plugin-develop-spec.md) 4 |
 | `meta.json` 的 `conflicts` | 上游只在清单层描述 `conflicts`,清单与用户指南都把它当作清单字段 | 由 `meta.json` 推导清单的两条路径都不读 `conflicts`,该字段不影响安装结果 | Schema 里保留该字段并标注「预留,引擎当前不读」,写进[开发规范](plugin-develop-spec.md) 4 |
 | 能力 `provider:run` | 清单 Schema 与运行时 meta Schema 的能力枚举只到 `provider:source`,没有 `provider:run` | 引擎能力表已含 `provider:run`(`context.provider.run`,10 次/10 秒,超时 15 秒),是供应端点执行侧的能力,与 `provider:source` 分开授权 | 本仓库的清单类型按实现收录 `provider:run`;上游 Schema 枚举待同步,同步前用本仓库 Schema 校验含 `provider:run` 的清单会误报 |
+| 能力 `settings:surface` | 清单 Schema 与运行时 meta Schema 的能力枚举没有 `settings:surface` | 引擎能力表已含 `settings:surface`(登记与读取共用 60 次/10 秒):插件激活期用 `context.settings.register` 登记字段描述,宿主据此渲染设置表单,写侧只在宿主的 `engine.pluginSettings(pluginId)` 门面 | 本仓库的清单类型按实现收录 `settings:surface`;上游 Schema 枚举待同步,同步前用本仓库 Schema 校验含 `settings:surface` 的清单会误报 |
 | 版本范围的写法 | 运行时 meta Schema 把 `dependencies.dsc` 描述为 semver range,`>=1.0.0 <2.0.0` 这类组合范围也能通过 Schema | 清单 `engines` 与离线包的 `dependencies.dsc` 都只接受单段比较表达式;组合范围在离线包预检阶段按 `invalid-meta` 拒绝,清单侧的 `engines` 才按 `incompatible-version` 拒绝 | 两个字段分别说明,并提示 `dependencies.dsc` 也要写成单段表达式 |
 | 带 `=` 前缀的精确版本 | 版本范围只写「支持 `^`、`~`、`>=`、`<=` 与精确版本」,未提等号前缀 | 范围规则接受 `=1.0.0`,与 `1.0.0` 等价,按三段数字比较 | [开发规范](plugin-develop-spec.md) 3 补上 `=` |
 

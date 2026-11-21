@@ -10,7 +10,7 @@
 
 /* ---------- 清单 ---------- */
 
-/** 清单中的能力名,取值来自引擎的能力表;provider:run 已在引擎实现,上游 Schema 枚举待同步 */
+/** 清单中的能力名,取值来自引擎的能力表;provider:run 与 settings:surface 已在引擎实现,上游 Schema 枚举待同步 */
 export type DscCapability =
   | 'sessions:list'
   | 'sessions:read'
@@ -18,6 +18,7 @@ export type DscCapability =
   | 'events:session'
   | 'notify'
   | 'settings:locale'
+  | 'settings:surface'
   | 'assets:read'
   | 'plugins:storage'
   | 'chat:request'
@@ -154,12 +155,55 @@ export interface PluginProviderApi {
   ): Promise<ProviderRunResult>
 }
 
+/* ---------- 设置表面(settings:surface) ---------- */
+
+/** 设置字段的类型;控件形态由宿主按类型渲染,插件只交描述、不交控件 */
+export type SettingFieldType = 'switch' | 'select' | 'number' | 'text' | 'secret'
+
+/** 设置值;只有标量 */
+export type SettingValue = string | number | boolean
+
+/**
+ * 单个设置字段的描述,只收录本插件用到的成员,完整契约以引擎的
+ * dsc-plugin-engine/pluginSettings.ts 为准。
+ * secret 字段不得有 default:密钥明文只写不读,读侧只回答「是否已配置」。
+ */
+export interface SettingFieldDescriptor {
+  /** 字段键,也是设置存储的键;同一份描述内不得重复 */
+  readonly key: string
+  readonly type: SettingFieldType
+  /** 插件直给的文案(1 到 40 字符);labelKey 走宿主字典,本插件不占用 */
+  readonly label?: string
+  /** 默认值;非 secret 字段必填,secret 字段不得有 */
+  readonly default?: SettingValue
+  /** text 的长度上限 */
+  readonly maxLength?: number
+}
+
+/** 一份设置表面描述;同一插件只保留最后登记的一份 */
+export interface SettingDescriptor {
+  readonly fields: readonly SettingFieldDescriptor[]
+}
+
+/**
+ * 能力 settings:surface 暴露的上下文成员。
+ * register 在激活期登记字段描述,返回释放函数,停用随引擎清理;
+ * values 只读自身设置值:用户覆盖值优先,否则默认值,secret 字段不返回任何值
+ * (连「是否已配置」也不可见),密钥的存在性由引擎在执行时判定。
+ * 写侧不在插件上下文:改动只由用户在宿主设置页保存,插件读不到变更推送。
+ */
+export interface PluginSettingsApi {
+  register(descriptor: SettingDescriptor): () => void
+  values(): Record<string, SettingValue>
+}
+
 /* ---------- 上下文与插件对象 ---------- */
 
 /**
  * 激活时注入的上下文。
- * 本插件只申请 provider:source 与 provider:run,因此只声明 provider 一项能力对象;
- * 未申请的能力成员按规范不会出现在用不到的路径上,这里不声明。
+ * 本插件申请 provider:source、provider:run 与 settings:surface,
+ * 声明 provider 与 settings 两个能力对象;locale 走 settings:locale,
+ * 本插件未申请,不声明该成员。
  */
 export interface PluginContext {
   /** 当前插件 id,与清单一致 */
@@ -169,6 +213,7 @@ export interface PluginContext {
   /** 写入该插件的日志,可在插件面板的「查看日志」中读取 */
   log(message: string): void
   readonly provider: PluginProviderApi
+  readonly settings: PluginSettingsApi
 }
 
 /** 插件对象;activate 超时 5 秒,deactivate 超时 3 秒,返回值均被忽略 */

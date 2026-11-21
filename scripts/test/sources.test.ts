@@ -54,6 +54,8 @@ interface FakeContext {
   runResults: ProviderRunResult[]
   /** run 的抛错队列;非空时 run 直接抛出 */
   runErrors: unknown[]
+  /** settings.values() 的返回值;测试中直接改写这个对象 */
+  readonly settingValues: Record<string, string | number | boolean>
 }
 
 const createFakeContext = (): FakeContext => {
@@ -62,6 +64,7 @@ const createFakeContext = (): FakeContext => {
   const logs: string[] = []
   const runResults: ProviderRunResult[] = []
   const runErrors: unknown[] = []
+  const settingValues: Record<string, string | number | boolean> = {}
 
   const streamResult = async function* () {
     yield { type: 'text', text: 'hi' }
@@ -73,6 +76,10 @@ const createFakeContext = (): FakeContext => {
     version: '0.1.0',
     log: (message) => {
       logs.push(message)
+    },
+    settings: {
+      register: () => () => {},
+      values: () => ({ ...settingValues }),
     },
     provider: {
       registerSource: (descriptor) => {
@@ -93,7 +100,7 @@ const createFakeContext = (): FakeContext => {
     },
   }
 
-  return { context, registered, runs, logs, runResults, runErrors }
+  return { context, registered, runs, logs, runResults, runErrors, settingValues }
 }
 
 /** 每个用例从未激活开始,避免模块级激活状态互相影响 */
