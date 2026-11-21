@@ -7,6 +7,8 @@
 
 | 文档 | 职责一句话 | 主要内容 | 什么时候需要读 | 主要读者 |
 |:---:|:---:|:---:|:---:|:---:|
+| [README.md](../README.md) | 仓库入口说明(中文) | 仓库定位、内置端点与能力覆盖、当前使用方式、工程结构、开发命令 | 初次了解本仓库或寻找入口说明时 | 维护者、Agent、引用方 |
+| [README.en-US.md](../README.en-US.md) | 仓库入口说明(英文) | 与 README.md 逐节对应 | 英文读者或核对双语口径时 | 维护者、Agent、引用方 |
 | [docs/design/provider-sources.md](design/provider-sources.md) | 供应端点注册与调用封装的设计定稿与缺口 | 定位与边界、内置端点与方言选择理由、方言到引擎描述的转换、注册与运行时校验、两条封装、缺口清单(设置控件待宿主表面)、与宿主实现的对齐依据 | 改内置端点、改转换映射、改封装行为,或判断宿主能力是否够用时 | 维护者、Agent |
 | [docs/spec.md](spec.md) | 来源描述文件规范 | 结构版本、顶层字段、能力逐项说明、三家差异对照、两处刻意取舍、校验方式、版本演进规则 | 改 Schema、改描述示例、改校验脚本,或判断某字段怎么填时 | 维护者、Agent、引用方 |
 | [specs/README.md](../specs/README.md) | 规范区的索引与差异留痕 | 规范文件清单、权威来源与引用约定、校验命令、与宿主实现的已知差异 | 引用规范、核对两侧口径、运行规范校验时 | 贡献者、维护者、Agent |
@@ -16,7 +18,7 @@
 - 上游副本与 Schema 的对应关系由 [specs/spec-version.json](../specs/spec-version.json) 登记;JSON Schema 与样例属于机器可校验的资产,不按文档计入本表,由 [specs/README.md](../specs/README.md) 统一收拢与说明。
 - 来源描述的三家方言示例与豆包调研分别放在 `schemas/examples/` 与 [docs/doubao-ark-research.md](doubao-ark-research.md);草案审计结论见 [docs/schema-audit-report.md](schema-audit-report.md)。
 - `LICENSE` 与 `COPYRIGHT` 不属于说明性文档,不列入本表。
-- 本仓库还没有面向人的根 `README.md` 与用户说明 `README.user.md`,入口说明暂由本索引与设计文档承担;缺口已记入设计文档第六节。
+- 仓库入口说明由根 `README.md` 与 `README.en-US.md` 承担,两份逐节对应;面向最终用户的 `README.user.md` 尚不存在,设置界面的缺口仍记在设计文档第六节。
 
 ## 二、冲突时以谁为准
 
