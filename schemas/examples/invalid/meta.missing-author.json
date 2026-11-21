@@ -1,0 +1,12 @@
+{
+  "name": "dsc-demo-log",
+  "version": "1.0.0",
+  "license": "Apache-2.0",
+  "description": {
+    "en-US": "Demo plugin"
+  },
+  "repo_link": "https://github.com/example/dsc-demo-log",
+  "dependencies": {
+    "dsc": "^1.0.0"
+  }
+}

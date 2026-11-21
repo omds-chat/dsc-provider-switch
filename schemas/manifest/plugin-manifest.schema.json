@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omds-chat.github.io/dsc-plugin-template/schemas/manifest/plugin-manifest.schema.json",
+  "title": "dsc-plugin-manifest",
+  "description": "dsc 插件运行时清单。字段与规则以 dsc-plugin-engine 的当前实现为准,细则见 specs/plugin-develop-spec.md。",
+  "type": "object",
+  "properties": {
+    "id": {
+      "$ref": "#/$defs/pluginId",
+      "description": "插件唯一标识,全局唯一;仓库约定以 dsc- 开头"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S",
+      "description": "展示名称,去掉首尾空白后不得为空"
+    },
+    "version": {
+      "$ref": "#/$defs/version"
+    },
+    "engines": {
+      "$ref": "#/$defs/engineRange"
+    },
+    "dependencies": {
+      "$ref": "#/$defs/pluginIdList",
+      "description": "依赖的插件 id,安装时须已存在,激活时须已激活"
+    },
+    "conflicts": {
+      "$ref": "#/$defs/pluginIdList",
+      "description": "冲突的插件 id,同时安装会被拒绝"
+    },
+    "capabilities": {
+      "type": "array",
+      "description": "申请的能力,不得重复;net:fetch 只对内置插件开放;provider:source 与 chat:request 也在能力表内",
+      "items": {
+        "$ref": "#/$defs/capability"
+      },
+      "uniqueItems": true
+    },
+    "mounts": {
+      "type": "array",
+      "description": "订阅的挂载点,不得重复;可选 session:changed 与 chat:before-request,未知挂载点按 unknown-mount 拒绝",
+      "items": {
+        "$ref": "#/$defs/mount"
+      },
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "version",
+    "capabilities"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "pluginId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,63}$",
+      "description": "小写字母开头,只允许小写字母、数字与连字符,长度 3 到 64",
+      "examples": [
+        "dsc-demo-log",
+        "dsc-session-digest"
+      ]
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$",
+      "description": "三段数字,不允许前导零",
+      "examples": [
+        "1.0.0",
+        "0.1.0"
+      ]
+    },
+    "engineRange": {
+      "type": "string",
+      "pattern": "^(?:(?:\\^|~|>=|<=|=)\\d+\\.\\d+\\.\\d+|\\*)?$",
+      "description": "按 dsc-core 版本判定的单段范围:一个比较符加三段版本,或 * 表示不限制;空串按不限制处理。引擎不接受组合范围,例如 >=1.0.0 <2.0.0",
+      "examples": [
+        "^1.0.0",
+        "~1.2.3",
+        ">=1.0.0",
+        "*"
+      ]
+    },
+    "pluginIdList": {
+      "type": "array",
+      "description": "引擎按插件 id 判定依赖与冲突,不比较版本;重复的 id 不影响判定",
+      "items": {
+        "$ref": "#/$defs/pluginId"
+      }
+    },
+    "capability": {
+      "type": "string",
+      "enum": [
+        "sessions:list",
+        "sessions:read",
+        "sessions:rename",
+        "events:session",
+        "notify",
+        "settings:locale",
+        "net:fetch",
+        "assets:read",
+        "plugins:storage",
+        "chat:request",
+        "provider:source"
+      ]
+    },
+    "mount": {
+      "type": "string",
+      "enum": [
+        "session:changed",
+        "chat:before-request"
+      ]
+    }
+  }
+}

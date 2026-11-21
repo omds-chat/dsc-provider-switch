@@ -1,0 +1,4 @@
+# pnpm 12 起设置项从 package.json 迁移到这里
+# 只允许 esbuild 执行安装脚本,其余依赖的脚本一律跳过
+allowBuilds:
+  esbuild: true

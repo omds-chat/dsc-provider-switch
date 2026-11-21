@@ -1,0 +1,8 @@
+{
+  "id": "dsc-demo-log",
+  "name": "   ",
+  "version": "0.1.0",
+  "capabilities": [
+    "notify"
+  ]
+}

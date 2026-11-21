@@ -1,8 +1,16 @@
 /*
- * 来源描述校验脚本:零第三方依赖,只校验本仓库的 Schema 与三份示例。
+ * 规范区校验脚本:零第三方依赖,不联网。
+ * 覆盖三块:
+ *   1) 来源描述 Schema(schemas/source-descriptor.schema.json)与 schemas/examples/*.descriptor.json,
+ *      含八条跨字段规则(docs/spec.md 第七节);
+ *   2) 清单与运行时 meta 的 Schema(schemas/manifest、schemas/runtime)及其正反例,
+ *      副本与样例随 dsc-plugin-template 同步;
+ *   3) 本仓库自身数据:package.json 派生的 meta.json 与构建产物 dist/meta.json。
  * 关键字白名单与 $id 规则对齐 dsc-plugin-template/scripts/validate-specs.mjs,
- * 语义覆盖本项目用到的 JSON Schema 2020-12 子集 + 本项目特有的跨字段规则。
- * 用法: node scripts/validate-specs.mjs
+ * 语义覆盖本仓库用到的 JSON Schema 2020-12 子集 + 来源描述特有的跨字段规则。
+ * 用法:
+ *   node scripts/validate-specs.mjs                     自检
+ *   node scripts/validate-specs.mjs <文件> [--schema descriptor|manifest|meta]  校验单个文档
  */
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
@@ -10,8 +18,14 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const DRAFT = 'https://json-schema.org/draft/2020-12/schema'
-const SCHEMA_PATH = 'schemas/source-descriptor.schema.json'
+const SOURCE_SCHEMA_PATH = 'schemas/source-descriptor.schema.json'
+const SCHEMA_FILES = {
+  manifest: { path: 'schemas/manifest/plugin-manifest.schema.json', versionKey: 'manifest' },
+  meta: { path: 'schemas/runtime/meta.json', versionKey: 'runtime_meta' },
+}
 const EXAMPLE_DIR = 'schemas/examples'
+const INVALID_DIR = 'schemas/examples/invalid'
+const SPEC_VERSION_FILE = 'specs/spec-version.json'
 
 const SUPPORTED_KEYWORDS = new Set([
   '$schema', '$id', '$defs', '$ref', '$comment', 'title', 'description', 'type',
@@ -258,6 +272,8 @@ const walkSchema = (schema, at, root, file, errors) => {
   }
 }
 
+/* ---------- 来源描述的跨字段规则(docs/spec.md 第七节) ---------- */
+
 const FORMAT_STREAM = {
   'anthropic-compatible': 'sse-anthropic',
   'openai-compatible': 'sse-openai',
@@ -320,6 +336,8 @@ const crossFieldCheck = (document) => {
   return errors
 }
 
+/* ---------- 通用读取与装载 ---------- */
+
 const readJson = (relativePath) => {
   const absolute = path.join(ROOT, relativePath)
   if (!existsSync(absolute)) {
@@ -327,6 +345,78 @@ const readJson = (relativePath) => {
   }
   return JSON.parse(readFileSync(absolute, 'utf8'))
 }
+
+const loadSourceSchema = () => {
+  const document = readJson(SOURCE_SCHEMA_PATH)
+  const errors = []
+  walkSchema(document, '#', document, SOURCE_SCHEMA_PATH, errors)
+  if (document.$schema !== DRAFT) {
+    errors.push(SOURCE_SCHEMA_PATH + ': $schema 必须是 ' + DRAFT)
+  }
+  if (typeof document.$id !== 'string' || !document.$id.startsWith('https://')) {
+    errors.push(SOURCE_SCHEMA_PATH + ': 必须提供 https 的 $id')
+  } else if (!document.$id.endsWith(SOURCE_SCHEMA_PATH)) {
+    errors.push(SOURCE_SCHEMA_PATH + ': $id 必须以文件路径结尾,当前为 ' + document.$id)
+  }
+  for (const field of ['title', 'description', '$comment', 'required', 'additionalProperties', '$defs', 'examples']) {
+    if (!(field in document)) {
+      errors.push(SOURCE_SCHEMA_PATH + ': 缺少顶层字段 ' + field)
+    }
+  }
+  return { document, errors }
+}
+
+const loadSchema = (name) => {
+  const relativePath = SCHEMA_FILES[name].path
+  const document = readJson(relativePath)
+  const errors = []
+  walkSchema(document, '#', document, relativePath, errors)
+  if (document.$schema !== DRAFT) {
+    errors.push(relativePath + ': $schema 必须是 ' + DRAFT)
+  }
+  if (typeof document.$id !== 'string' || !document.$id.startsWith('https://')) {
+    errors.push(relativePath + ': 必须提供 https 的 $id')
+  } else if (!document.$id.endsWith(relativePath)) {
+    errors.push(relativePath + ': $id 必须以文件路径结尾,当前为 ' + document.$id)
+  }
+  return { document, relativePath, errors }
+}
+
+const validateDocument = (schema, document) => {
+  const errors = []
+  validateNode(schema, document, '#', schema, errors)
+  return errors
+}
+
+const deriveMetaFromPackage = () => {
+  const pkg = readJson('package.json')
+  const dsc = isPlainObject(pkg.dsc) ? pkg.dsc : null
+  if (dsc === null) {
+    throw new Error('package.json 缺少 dsc 块')
+  }
+  const meta = {
+    name: pkg.name,
+    version: pkg.version,
+    license: pkg.license,
+    description: dsc.description,
+    author: pkg.author,
+    repo_link: dsc.repo_link,
+    dependencies: { dsc: dsc.engines },
+  }
+  if (dsc.home_page !== undefined) {
+    meta.home_page = dsc.home_page
+  }
+  if (dsc.attached !== undefined) {
+    meta.attached = dsc.attached
+  }
+  return meta
+}
+
+/* ---------- 清单与 meta 样例的归类 ---------- */
+
+const fixtureSchemaName = (fileName) => (fileName.startsWith('meta.') ? 'meta' : 'manifest')
+
+/* ---------- 自检 ---------- */
 
 const failures = []
 const report = (label, passed, detail) => {
@@ -337,53 +427,86 @@ const report = (label, passed, detail) => {
   }
 }
 
-console.log('[1/4] Schema 自身静态检查: ' + SCHEMA_PATH)
-const schemaDocument = readJson(SCHEMA_PATH)
-const schemaErrors = []
-walkSchema(schemaDocument, '#', schemaDocument, SCHEMA_PATH, schemaErrors)
-if (schemaDocument.$schema !== DRAFT) {
-  schemaErrors.push(SCHEMA_PATH + ': $schema 必须是 ' + DRAFT)
-}
-if (typeof schemaDocument.$id !== 'string' || !schemaDocument.$id.startsWith('https://')) {
-  schemaErrors.push(SCHEMA_PATH + ': 必须提供 https 的 $id')
-} else if (!schemaDocument.$id.endsWith(SCHEMA_PATH)) {
-  schemaErrors.push(SCHEMA_PATH + ': $id 必须以文件路径结尾,当前为 ' + schemaDocument.$id)
-}
-for (const field of ['title', 'description', '$comment', 'required', 'additionalProperties', '$defs', 'examples']) {
-  if (!(field in schemaDocument)) {
-    schemaErrors.push(SCHEMA_PATH + ': 缺少顶层字段 ' + field)
+console.log('[1/6] 规范版本与 Schema 文件')
+const specVersion = readJson(SPEC_VERSION_FILE)
+const versionFields = ['spec_version', 'dsc_core']
+let versionOk = true
+for (const field of versionFields) {
+  if (typeof specVersion[field] !== 'string' || !/^\d+\.\d+\.\d+$/.test(specVersion[field])) {
+    report(SPEC_VERSION_FILE + ' 字段 ' + field, false, '必须是三段数字')
+    versionOk = false
   }
 }
-report('Schema 关键字白名单、$ref、pattern、$id 与必备顶层字段', schemaErrors.length === 0, schemaErrors.slice(0, 5).join('; '))
+for (const name of Object.keys(SCHEMA_FILES)) {
+  const expected = SCHEMA_FILES[name]
+  const actual = isPlainObject(specVersion.schemas) ? specVersion.schemas[expected.versionKey] : undefined
+  if (actual !== expected.path) {
+    report(SPEC_VERSION_FILE + ' 的 schemas.' + expected.versionKey, false, '必须指向 ' + expected.path)
+    versionOk = false
+  }
+}
+if (versionOk) {
+  report('规范版本与 Schema 路径', true, 'spec_version ' + specVersion.spec_version + ',dsc_core ' + specVersion.dsc_core)
+}
 
-console.log('[2/4] Schema 内联 examples')
-const inlineExamples = Array.isArray(schemaDocument.examples) ? schemaDocument.examples : []
+console.log('[2/6] 清单与 meta Schema 结构')
+const schemas = {}
+for (const name of Object.keys(SCHEMA_FILES)) {
+  const loaded = loadSchema(name)
+  schemas[name] = loaded
+  report(loaded.relativePath, loaded.errors.length === 0, loaded.errors.slice(0, 5).join('; '))
+}
+
+console.log('[3/6] 来源描述 Schema 自身静态检查: ' + SOURCE_SCHEMA_PATH)
+const sourceSchema = loadSourceSchema()
+report('Schema 关键字白名单、$ref、pattern、$id 与必备顶层字段', sourceSchema.errors.length === 0, sourceSchema.errors.slice(0, 5).join('; '))
+const inlineExamples = isPlainObject(sourceSchema.document) && Array.isArray(sourceSchema.document.examples) ? sourceSchema.document.examples : []
 if (inlineExamples.length === 0) {
-  report(SCHEMA_PATH + ' 的 examples', false, '至少给出一条完整实例')
+  report(SOURCE_SCHEMA_PATH + ' 的 examples', false, '至少给出一条完整实例')
 }
 inlineExamples.forEach((example, index) => {
-  const errors = []
-  validateNode(schemaDocument, example, '#', schemaDocument, errors)
+  const errors = validateDocument(sourceSchema.document, example)
   errors.push(...crossFieldCheck(example))
   report('内联 example[' + String(index) + '] ' + String(example.id), errors.length === 0, errors.slice(0, 3).join('; '))
 })
 
-console.log('[3/4] 正例: ' + EXAMPLE_DIR)
-const exampleFiles = readdirSync(path.join(ROOT, EXAMPLE_DIR)).filter((name) => name.endsWith('.json')).sort()
-if (exampleFiles.length === 0) {
-  report(EXAMPLE_DIR, false, '目录内没有 .json 样例')
+console.log('[4/6] 来源描述正例: ' + EXAMPLE_DIR)
+const allExampleFiles = readdirSync(path.join(ROOT, EXAMPLE_DIR)).filter((name) => name.endsWith('.json')).sort()
+const descriptorFiles = allExampleFiles.filter((name) => name.endsWith('.descriptor.json'))
+const fixtureFiles = allExampleFiles.filter((name) => !name.endsWith('.descriptor.json'))
+if (descriptorFiles.length === 0) {
+  report(EXAMPLE_DIR, false, '目录内没有 .descriptor.json 样例')
 }
-for (const fileName of exampleFiles) {
+for (const fileName of descriptorFiles) {
   const relativePath = EXAMPLE_DIR + '/' + fileName
   const document = readJson(relativePath)
-  const errors = []
-  validateNode(schemaDocument, document, '#', schemaDocument, errors)
+  const errors = validateDocument(sourceSchema.document, document)
   errors.push(...crossFieldCheck(document))
   report(relativePath, errors.length === 0, errors.slice(0, 3).join('; '))
 }
 
-console.log('[4/4] 语义一致性: 正例覆盖的能力与方言')
-const summary = exampleFiles.map((fileName) => {
+console.log('[5/6] 清单与 meta 正反例')
+for (const fileName of fixtureFiles) {
+  const relativePath = EXAMPLE_DIR + '/' + fileName
+  const schema = schemas[fixtureSchemaName(fileName)]
+  const errors = validateDocument(schema.document, readJson(relativePath))
+  report('正例 ' + relativePath, errors.length === 0, errors.slice(0, 3).join('; '))
+}
+const invalidFiles = existsSync(path.join(ROOT, INVALID_DIR))
+  ? readdirSync(path.join(ROOT, INVALID_DIR)).filter((name) => name.endsWith('.json')).sort()
+  : []
+for (const fileName of invalidFiles) {
+  const relativePath = INVALID_DIR + '/' + fileName
+  const schema = schemas[fixtureSchemaName(fileName)]
+  const errors = validateDocument(schema.document, readJson(relativePath))
+  report('反例 ' + relativePath + ' 已被拒绝', errors.length > 0, errors.length > 0 ? '' : '未发现任何错误')
+  if (errors.length > 0) {
+    console.log('      首个错误: ' + errors[0])
+  }
+}
+
+console.log('[6/6] 语义一致性与本仓库数据')
+const summary = descriptorFiles.map((fileName) => {
   const document = readJson(EXAMPLE_DIR + '/' + fileName)
   const ids = (document.capabilities || []).map((capability) => capability.id).join(',')
   return fileName.replace('.descriptor.json', '') + ' [' + document.format + '] ' + ids
@@ -391,8 +514,8 @@ const summary = exampleFiles.map((fileName) => {
 for (const line of summary) {
   console.log('      ' + line)
 }
-const anthropic = readJson(EXAMPLE_DIR + '/anthropic.descriptor.json')
 const helper = (document, id) => (document.capabilities || []).some((capability) => capability.id === id)
+const anthropic = readJson(EXAMPLE_DIR + '/anthropic.descriptor.json')
 report('anthropic 声明 vision:image 与 document:read', helper(anthropic, 'vision:image') && helper(anthropic, 'document:read'))
 const deepseekDocument = readJson(EXAMPLE_DIR + '/deepseek.descriptor.json')
 report('deepseek 不声明 vision:image 与 document:read', !helper(deepseekDocument, 'vision:image') && !helper(deepseekDocument, 'document:read'))
@@ -400,10 +523,19 @@ report('deepseek 用 max_tokens 且声明 1..393216', isPlainObject(deepseekDocu
 report('anthropic 用 x-api-key 且带 anthropic-version 固定头', anthropic.credential.headers[0].name === 'x-api-key' && anthropic.endpoints.chat.headers.some((header) => header.name === 'anthropic-version'))
 const openaiDocument = readJson(EXAMPLE_DIR + '/openai.descriptor.json')
 report('openai 用 Bearer 且 max_completion_tokens', openaiDocument.credential.headers[0].prefix === 'Bearer ' && openaiDocument.capabilities[0].params.maxTokens === 'max_completion_tokens')
+const deepseekAnthropic = readJson(EXAMPLE_DIR + '/deepseek-anthropic.descriptor.json')
+report('deepseek-anthropic 走 /anthropic/v1/messages 且用 x-api-key', deepseekAnthropic.format === 'anthropic-compatible' && deepseekAnthropic.endpoints.chat.path === '/anthropic/v1/messages' && deepseekAnthropic.credential.headers[0].name === 'x-api-key' && deepseekAnthropic.endpoints.chat.headers === undefined)
+
+const metaErrors = validateDocument(schemas.meta.document, deriveMetaFromPackage())
+report('package.json 派生的 meta.json', metaErrors.length === 0, metaErrors.join('; '))
+if (existsSync(path.join(ROOT, 'dist/meta.json'))) {
+  const distErrors = validateDocument(schemas.meta.document, readJson('dist/meta.json'))
+  report('构建产物 meta.json', distErrors.length === 0, distErrors.join('; '))
+}
 
 if (failures.length > 0) {
   console.error('自检未通过,失败项 ' + String(failures.length) + ' 个')
   process.exitCode = 1
 } else {
-  console.log('自检通过: 1 份 Schema,' + String(inlineExamples.length) + ' 条内联实例,' + String(exampleFiles.length) + ' 份示例')
+  console.log('自检通过: 1 份来源描述 Schema,' + String(inlineExamples.length) + ' 条内联实例,' + String(descriptorFiles.length) + ' 份来源描述正例,' + String(fixtureFiles.length) + ' 份清单与 meta 正例,' + String(invalidFiles.length) + ' 个反例')
 }

@@ -198,13 +198,15 @@ OpenAI 与 DeepSeek 的事实落点：`field` 为 `reasoning_effort`，`levels` 
 | 服务端工具 | 自有工具名（`deepseek_web_search`、`deepseek_read_url`） | 走请求 `tools` 字段 | 自有工具名（`web_search`、`web_fetch`） | `tool:*` 的 `kind`、`requestField`、`names` |
 | 流式 | `data: {choices:[{delta}]}` | `data: {choices:[{delta}]}` | 具名事件 `message_start` / `content_block_delta` / `message_stop` | `text:generate.stream` |
 
-三份示例文件的取值：
+示例文件的取值（豆包与 deepseek-anthropic 的取值依据见 [docs/doubao-ark-research.md](doubao-ark-research.md) 与 [docs/design/provider-sources.md](design/provider-sources.md)）：
 
 | 文件 | id | format | base | chat path | 能力数 |
 |:---:|:---:|:---:|:---:|:---:|:---:|
 | `schemas/examples/deepseek.descriptor.json` | `deepseek` | `deepseek-compatible` | `https://api.deepseek.com` | `/chat/completions` | 5 |
+| `schemas/examples/deepseek-anthropic.descriptor.json` | `deepseek-anthropic` | `anthropic-compatible` | `https://api.deepseek.com` | `/anthropic/v1/messages` | 3 |
 | `schemas/examples/openai.descriptor.json` | `openai` | `openai-compatible` | `https://api.openai.com/v1` | `/chat/completions` | 5 |
 | `schemas/examples/anthropic.descriptor.json` | `anthropic` | `anthropic-compatible` | `https://api.anthropic.com` | `/v1/messages` | 7 |
+| `schemas/examples/doubao.descriptor.json` | `doubao` | `openai-compatible` | `https://ark.cn-beijing.volces.com/api/v3` | `/chat/completions` | 5 |
 
 ## 六、两处刻意的取舍
 
@@ -221,14 +223,16 @@ OpenAI 与 DeepSeek 的事实落点：`field` 为 `reasoning_effort`，`levels` 
 node scripts/validate-specs.mjs
 ```
 
-脚本做四件事，任一失败即以退出码 1 结束：
+脚本做六件事，任一失败即以退出码 1 结束：
 
 | 步骤 | 内容 | 失败示例 |
 |:---:|:---|:---|
-| 1 | Schema 静态检查：关键字白名单、`$ref` 可解析、`pattern` 可编译、`$schema` 恒为 draft 2020-12、`$id` 以文件路径结尾、必备顶层字段齐备 | `未支持的 schema 关键字 propertyNames` |
-| 2 | 校验 Schema 内联 `examples` | `内联 example[0]: 取值必须为 ...` |
-| 3 | 校验 `schemas/examples/*.json` 三份示例 | `不允许的字段 ...`、`必须恰好满足 oneOf 中的一项` |
-| 4 | 语义一致性抽查：方言与能力覆盖是否符合约定 | `deepseek 不声明 vision:image` |
+| 1 | 规范版本与 Schema 路径：`specs/spec-version.json` 的版本与 `schemas` 映射同磁盘文件一致 | `必须指向 schemas/manifest/...` |
+| 2 | 清单与 meta Schema 静态检查：关键字白名单、`$ref` 可解析、`pattern` 可编译、`$schema` 恒为 draft 2020-12、`$id` 以文件路径结尾 | `未支持的 schema 关键字 propertyNames` |
+| 3 | 来源描述 Schema 静态检查与内联 `examples` 校验 | `内联 example[0]: 取值必须为 ...` |
+| 4 | 校验 `schemas/examples/*.descriptor.json` 的来源描述正例（含八条跨字段规则） | `不允许的字段 ...`、`跨字段: ...` |
+| 5 | 清单与 meta 的正例通过、`schemas/examples/invalid/` 反例被拒 | `反例 ... 未发现任何错误` |
+| 6 | 语义一致性抽查与本仓库数据：方言与能力覆盖、`package.json` 派生的 meta、构建产物 `dist/meta.json`（存在时） | `deepseek 不声明 vision:image` |
 
 关键字白名单与 `$id` 规则与 `dsc-plugin-template/scripts/validate-specs.mjs` 逐条一致，因此本项目 Schema 可以直接迁进模板仓库的规范区。白名单只有 31 个关键字，`patternProperties`、`propertyNames`、`if/then` 不可用，这也是能力表必须写成数组而不能写成开放键映射的直接原因。
 
@@ -250,24 +254,36 @@ node scripts/validate-specs.mjs
 当前校验输出：
 
 ```text
-[1/4] Schema 自身静态检查: schemas/source-descriptor.schema.json
+[1/6] 规范版本与 Schema 文件
+通过  规范版本与 Schema 路径: spec_version 1.0.0,dsc_core 1.0.0
+[2/6] 清单与 meta Schema 结构
+通过  schemas/manifest/plugin-manifest.schema.json
+通过  schemas/runtime/meta.json
+[3/6] 来源描述 Schema 自身静态检查: schemas/source-descriptor.schema.json
 通过  Schema 关键字白名单、$ref、pattern、$id 与必备顶层字段
-[2/4] Schema 内联 examples
 通过  内联 example[0] deepseek
-[3/4] 正例: schemas/examples
+[4/6] 来源描述正例: schemas/examples
 通过  schemas/examples/anthropic.descriptor.json
+通过  schemas/examples/deepseek-anthropic.descriptor.json
 通过  schemas/examples/deepseek.descriptor.json
+通过  schemas/examples/doubao.descriptor.json
 通过  schemas/examples/openai.descriptor.json
-[4/4] 语义一致性: 正例覆盖的能力与方言
-      anthropic [anthropic-compatible] text:generate,prompt:system,reasoning:think,vision:image,document:read,tool:web-search,tool:read-url
-      deepseek [deepseek-compatible] text:generate,prompt:system,reasoning:think,tool:web-search,tool:read-url
-      openai [openai-compatible] text:generate,prompt:system,reasoning:think,vision:image,tool:web-search
+[5/6] 清单与 meta 正反例
+通过  正例 schemas/examples/manifest.full.valid.json
+通过  正例 schemas/examples/manifest.valid.json
+通过  正例 schemas/examples/meta.valid.json
+通过  反例 schemas/examples/invalid/manifest.bad-id.json 已被拒绝
+      （其余 15 个反例逐条列出）
+[6/6] 语义一致性与本仓库数据
 通过  anthropic 声明 vision:image 与 document:read
 通过  deepseek 不声明 vision:image 与 document:read
 通过  deepseek 用 max_tokens 且声明 1..393216
 通过  anthropic 用 x-api-key 且带 anthropic-version 固定头
 通过  openai 用 Bearer 且 max_completion_tokens
-自检通过: 1 份 Schema,1 条内联实例,3 份示例
+通过  deepseek-anthropic 走 /anthropic/v1/messages 且用 x-api-key
+通过  package.json 派生的 meta.json
+通过  构建产物 meta.json
+自检通过: 1 份来源描述 Schema,1 条内联实例,5 份来源描述正例,3 份清单与 meta 正例,16 个反例
 ```
 
 ## 八、版本演进规则
@@ -311,7 +327,7 @@ node scripts/validate-specs.mjs
 
 ### 8.4 与规范版本锁定的关系
 
-本仓库尚未建立 `specs/spec-version.json`（记录规范版本、支持的核心版本与 Schema 路径），属后续任务。在它落地之前，Schema 路径由 `$id` 锁定为 `https://omds-chat.github.io/dsc-provider-switch/schemas/source-descriptor.schema.json`，改名等于破坏发布契约，须升 `schemaVersion` 并在变更说明中给出旧路径。
+本仓库已建立 `specs/`（从 dsc-plugin-template 复制的运行时与开发规范副本）与 `specs/spec-version.json`（记录 `spec_version`、`dsc_core` 与清单、运行时 meta 两份 Schema 的仓库内路径）。来源描述 Schema 不在该登记表内，它的路径仍由 `$id` 锁定为 `https://omds-chat.github.io/dsc-provider-switch/schemas/source-descriptor.schema.json`，改名等于破坏发布契约，须升 `schemaVersion` 并在变更说明中给出旧路径。
 
 ## 九、本版未纳入的事项
 
@@ -321,7 +337,7 @@ node scripts/validate-specs.mjs
 | 逐端点凭据 | `credential.headers` 只能全部写入 | 保留待决策；一旦出现同一来源“聊天用 A 头、校验用 B 头”且不能同时发送，需要新增覆盖字段 |
 | 基址兜底数组 | `base` 只允许单值 | 若需要 CDN 与源站兜底，须改成有序数组并定义降级顺序，属破坏性变更 |
 | `deepseek-compatible` 的边界 | 在 `format` 枚举内保留 | 若判定该形态不存在，删除取值并升版本；删除前不得让实例依赖它 |
-| `specs/` 与 `spec-version.json` | 未建立 | 与模板仓库对齐后补齐，并把本文件第七、八节迁入 `specs/` |
+| `specs/` 与 `spec-version.json` | 已建立 | 规范副本与清单、meta Schema 已从模板仓库同步；本文件仍承担来源描述的权威口径，第七、八节留在原地，迁入 `specs/` 属后续任务 |
 | 反例样例 | 未建 | 需要时按 `schemas/examples/invalid/<对象>.<理由>.json` 组织，每个反例只演示一条规则 |
 
 ## 附录：文件清单
@@ -330,7 +346,12 @@ node scripts/validate-specs.mjs
 |:---:|:---|
 | `schemas/source-descriptor.schema.json` | 结构契约，draft 2020-12，自包含，含 1 条内联实例 |
 | `schemas/examples/deepseek.descriptor.json` | DeepSeek 实例，OpenAI 形态，不含视觉与文档能力 |
+| `schemas/examples/deepseek-anthropic.descriptor.json` | DeepSeek 实例，Anthropic 形态，本插件内置注册并调用的端点 |
 | `schemas/examples/openai.descriptor.json` | OpenAI 实例，含 `image_url` 与 `max_completion_tokens` |
 | `schemas/examples/anthropic.descriptor.json` | Anthropic 实例，含 `x-api-key`、`top_k`、`thinking`、文档块 |
-| `scripts/validate-specs.mjs` | 零依赖校验脚本，四步检查与八条跨字段规则 |
+| `schemas/examples/doubao.descriptor.json` | 豆包实例，依据 docs/doubao-ark-research.md 的调研取值 |
+| `schemas/manifest/`、`schemas/runtime/` 及其正反例 | 从 dsc-plugin-template 同步的清单与运行时 meta Schema，随 specs 副本一并校验 |
+| `scripts/validate-specs.mjs` | 零依赖校验脚本：来源描述的静态检查、内联实例、正例与八条跨字段规则，加清单、meta 的正反例与本仓库 meta 校验 |
+| `specs/` | 运行时规范与开发规范的模板仓库副本，含 spec-version.json 与已知差异表 |
 | `docs/spec.md` | 本文件 |
+| `docs/design/provider-sources.md` | 供应端点注册与调用封装的设计定稿，含方言选择理由与缺口清单 |

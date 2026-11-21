@@ -1,0 +1,25 @@
+{
+  "name": "@alice/dsc-demo-log",
+  "version": "1.0.0",
+  "license": "Apache-2.0",
+  "description": {
+    "zh-CN": "示例插件",
+    "en-US": "Demo plugin"
+  },
+  "author": "Alice",
+  "home_page": "https://github.com/example/dsc-demo-log",
+  "repo_link": "https://github.com/example/dsc-demo-log",
+  "capabilities": [
+    "sessions:read",
+    "events:session"
+  ],
+  "dependencies": {
+    "dsc": "^1.0.0"
+  },
+  "attached": {
+    "favicon": "https://example.com/favicon.ico",
+    "intro_image": [
+      "https://example.com/intro.png"
+    ]
+  }
+}

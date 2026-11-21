@@ -1,0 +1,31 @@
+{
+  "name": "dsc-provider-switch",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "dsc 插件 dsc-provider-switch:内置 DeepSeek(Anthropic 形态)与 OpenAI、Anthropic 兼容预设供应端点,激活时经 context.provider.registerSource 注册,并提供文本生成与模型列表两条 context.provider.run 封装;端点选择、密钥填写与设置界面待宿主提供插件设置表面",
+  "license": "Apache-2.0",
+  "author": "omds-chat",
+  "scripts": {
+    "build": "node build.mjs",
+    "type": "tsc --noEmit",
+    "validate:specs": "node scripts/validate-specs.mjs",
+    "test": "node --import ./scripts/test/ts-hooks.mjs --test \"scripts/test/**/*.test.ts\""
+  },
+  "dsc": {
+    "engines": "^1.0.0",
+    "description": {
+      "zh-CN": "供应端点切换的 dsc 插件:内置 DeepSeek(Anthropic 形态)与 OpenAI、Anthropic 兼容预设端点,激活时注册给宿主,插件侧提供文本生成与模型列表的调用封装;端点选择、密钥填写与设置界面待宿主提供插件设置表面",
+      "en-US": "A dsc plugin for switching provider endpoints: ships built-in DeepSeek (Anthropic-compatible) plus OpenAI- and Anthropic-compatible preset endpoints, registers them with the host on activation, and wraps context.provider.run for text generation and model listing; endpoint picking, keys and the settings UI await a host plugin-settings surface"
+    },
+    "home_page": "https://github.com/omds-chat/dsc-provider-switch",
+    "repo_link": "https://github.com/omds-chat/dsc-provider-switch"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

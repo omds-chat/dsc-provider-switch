@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omds-chat.github.io/dsc-plugin-template/schemas/runtime/meta.json",
+  "title": "dsc-plugin-runtime-meta",
+  "description": "DSC 插件运行时元数据文件。字段与读取口径以 DeepSeek-Chat-Enhanced 的 dsc-plugin-engine 与 dsc-market 实现为准:离线包预检读 name、version、author、license、description、capabilities 与 dependencies.dsc;市场另外读 repo_link、home_page 与 mounts。清单的 engines 取自 dependencies.dsc,清单的 dependencies(插件 id 列表)与 conflicts 不从本文件推导。",
+  "type": "object",
+  "properties": {
+    "name": {
+      "$ref": "#/$defs/npmPluginName"
+    },
+    "version": {
+      "$ref": "#/$defs/version"
+    },
+    "license": {
+      "type": "string",
+      "minLength": 1,
+      "description": "许可证标识,建议使用 SPDX 标识符,如 MIT、Apache-2.0"
+    },
+    "description": {
+      "$ref": "#/$defs/i18nDescription"
+    },
+    "author": {
+      "type": "string",
+      "minLength": 1
+    },
+    "home_page": {
+      "$ref": "#/$defs/link"
+    },
+    "repo_link": {
+      "$ref": "#/$defs/link"
+    },
+    "capabilities": {
+      "type": "array",
+      "description": "可选的能力声明。离线包装安装时用它推导插件清单,缺省或形态不合法时改用产物导出的 manifest;市场由 meta.json 推导清单时也读它,遇到能力表之外的名字会整份放弃该字段,同样回落到产物清单。重复项在两条路径上都会被去重。net:fetch 只对内置插件开放,第三方声明会在清单校验阶段按 unknown-capability 拒绝。",
+      "items": {
+        "$ref": "#/$defs/capability"
+      },
+      "uniqueItems": true
+    },
+    "mounts": {
+      "type": "array",
+      "description": "可选的挂载点声明。市场由 meta.json 推导清单时会读它,写进安装清单的 mounts;离线包推导当前不读该字段,包里写了也不影响推导结果,缺省时由产物导出的 manifest.mounts 补齐。挂载点取自 dsc-core 的挂载点表,清单校验阶段遇到表外名字按 unknown-mount 拒绝。",
+      "items": {
+        "$ref": "#/$defs/mount"
+      },
+      "uniqueItems": true
+    },
+    "conflicts": {
+      "type": "array",
+      "description": "预留,引擎当前不读。清单支持 conflicts,安装时按插件 id 判定冲突并返回 conflict;但由 meta.json 推导清单的两条路径(离线包与市场)都不读取本字段,写在这里不产生任何拦截效果,冲突声明仍须写在产物导出的 manifest 里。",
+      "items": {
+        "$ref": "#/$defs/pluginId"
+      }
+    },
+    "dependencies": {
+      "type": "object",
+      "properties": {
+        "dsc": {
+          "$ref": "#/$defs/versionRange"
+        }
+      },
+      "required": [
+        "dsc"
+      ],
+      "additionalProperties": false
+    },
+    "attached": {
+      "type": "object",
+      "description": "预留,引擎当前不读。可选附加资源,供合集与展示侧自行取用。整个字段可缺省;内部子字段可单独缺省;允许空对象 {},语义由使用者兜底。",
+      "properties": {
+        "favicon": {
+          "$ref": "#/$defs/link",
+          "description": "站点图标链接,可选"
+        },
+        "intro_image": {
+          "type": "array",
+          "description": "介绍图片链接列表,可选;允许空数组 [],语义由使用者兜底。",
+          "items": {
+            "$ref": "#/$defs/link"
+          },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "name",
+    "version",
+    "license",
+    "description",
+    "author",
+    "repo_link",
+    "dependencies"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "npmPluginName": {
+      "type": "string",
+      "maxLength": 214,
+      "pattern": "^(?:dsc-[a-z0-9][a-z0-9._-]*|@[a-z0-9][a-z0-9._-]*/dsc-[a-z0-9][a-z0-9._-]*)$",
+      "description": "npm 包名,即插件名。全局包为 dsc-xxx;用户命名空间包为 @scope/dsc-xxx。仅允许小写字母、数字、点、下划线、连字符;scope 和包名均不能以点或下划线开头。",
+      "examples": [
+        "dsc-demo",
+        "dsc-plugin-runtime",
+        "@alice/dsc-demo",
+        "@my-org/dsc-plugin-runtime"
+      ]
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$",
+      "description": "语义化版本号,格式 x.y.z",
+      "examples": [
+        "1.0.0",
+        "0.2.13"
+      ]
+    },
+    "versionRange": {
+      "type": "string",
+      "minLength": 1,
+      "description": "semver range 表达式,如 ^1.0.0、~1.2.3、*。离线包装安装时,该值会作为插件清单的 engines 使用,而清单只接受单段比较表达式,因此写成 >=1.0.0 <2.0.0 这类组合范围会导致安装被拒。",
+      "examples": [
+        "^1.0.0",
+        "~1.2.3",
+        "*"
+      ]
+    },
+    "capability": {
+      "type": "string",
+      "description": "能力名,取自 dsc-core 的能力表 CORE_CAPABILITIES",
+      "enum": [
+        "sessions:list",
+        "sessions:read",
+        "sessions:rename",
+        "events:session",
+        "notify",
+        "settings:locale",
+        "net:fetch",
+        "assets:read",
+        "plugins:storage",
+        "chat:request",
+        "provider:source"
+      ]
+    },
+    "mount": {
+      "type": "string",
+      "description": "挂载点名,取自 dsc-core 的挂载点表 MOUNT_POINTS",
+      "enum": [
+        "session:changed",
+        "chat:before-request"
+      ]
+    },
+    "pluginId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,63}$",
+      "description": "插件 id,按清单的 id 规则判定,与 npm 包名不是一回事;引擎按它比对已安装插件",
+      "examples": [
+        "dsc-demo-log",
+        "dsc-session-digest"
+      ]
+    },
+    "link": {
+      "type": "string",
+      "format": "uri",
+      "minLength": 1,
+      "description": "合法的 URI/URL"
+    },
+    "i18nDescription": {
+      "type": "object",
+      "properties": {
+        "zh-CN": {
+          "type": "string",
+          "minLength": 1
+        },
+        "en-US": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "anyOf": [
+        {
+          "required": [
+            "zh-CN"
+          ]
+        },
+        {
+          "required": [
+            "en-US"
+          ]
+        }
+      ],
+      "additionalProperties": false
+    }
+  }
+}

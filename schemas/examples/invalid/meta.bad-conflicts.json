@@ -1,0 +1,16 @@
+{
+  "name": "dsc-demo-log",
+  "version": "1.0.0",
+  "license": "Apache-2.0",
+  "description": {
+    "zh-CN": "示例插件"
+  },
+  "author": "Alice",
+  "repo_link": "https://github.com/example/dsc-demo-log",
+  "conflicts": [
+    "Dsc-Demo-Legacy"
+  ],
+  "dependencies": {
+    "dsc": "^1.0.0"
+  }
+}

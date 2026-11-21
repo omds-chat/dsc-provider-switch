@@ -1,0 +1,26 @@
+{
+  "id": "dsc-full-example",
+  "name": "Full Example",
+  "version": "1.2.3",
+  "engines": "~1.2.0",
+  "dependencies": [
+    "dsc-demo-log"
+  ],
+  "conflicts": [
+    "dsc-legacy-log"
+  ],
+  "capabilities": [
+    "sessions:list",
+    "sessions:read",
+    "sessions:rename",
+    "events:session",
+    "notify",
+    "settings:locale",
+    "plugins:storage",
+    "chat:request"
+  ],
+  "mounts": [
+    "session:changed",
+    "chat:before-request"
+  ]
+}

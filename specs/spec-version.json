@@ -1,0 +1,8 @@
+{
+  "spec_version": "1.0.0",
+  "dsc_core": "1.0.0",
+  "schemas": {
+    "manifest": "schemas/manifest/plugin-manifest.schema.json",
+    "runtime_meta": "schemas/runtime/meta.json"
+  }
+}

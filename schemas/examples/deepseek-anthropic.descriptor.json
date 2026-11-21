@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "id": "deepseek-anthropic",
+  "name": {
+    "zh-CN": "DeepSeek 官方(Anthropic 形态)",
+    "en-US": "DeepSeek official (Anthropic-compatible)"
+  },
+  "format": "anthropic-compatible",
+  "endpoints": {
+    "base": "https://api.deepseek.com",
+    "chat": {
+      "path": "/anthropic/v1/messages"
+    },
+    "models": {
+      "path": "/models"
+    }
+  },
+  "credential": {
+    "kind": "api-key",
+    "headers": [
+      {
+        "name": "x-api-key"
+      }
+    ]
+  },
+  "capabilities": [
+    {
+      "id": "text:generate",
+      "stream": "sse-anthropic",
+      "params": {
+        "maxTokens": "max_tokens",
+        "temperature": "temperature",
+        "topP": "top_p",
+        "stop": "stop_sequences"
+      },
+      "limits": {
+        "maxTokens": {
+          "min": 1,
+          "max": 393216
+        },
+        "temperature": {
+          "min": 0,
+          "max": 2,
+          "default": 1
+        }
+      }
+    },
+    {
+      "id": "prompt:system",
+      "mode": "top-level-field",
+      "field": "system"
+    },
+    {
+      "id": "reasoning:think",
+      "style": "type-toggle",
+      "field": "thinking",
+      "onValue": "enabled",
+      "offValue": "disabled"
+    }
+  ]
+}
