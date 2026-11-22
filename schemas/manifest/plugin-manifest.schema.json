@@ -31,7 +31,7 @@
     },
     "capabilities": {
       "type": "array",
-      "description": "申请的能力,不得重复;net:fetch 只对内置插件开放;provider:source 与 chat:request 也在能力表内",
+      "description": "申请的能力,不得重复;取值见 specs/plugin-develop-spec.md 2.1 的能力表。net:fetch 仅内置插件,assets:download 仅受信来源插件,第三方申请都按 unknown-capability 拒绝;chat:request 须同时声明挂载点 chat:before-request;ui:slot 须同时声明 slots 白名单",
       "items": {
         "$ref": "#/$defs/capability"
       },
@@ -42,6 +42,22 @@
       "description": "订阅的挂载点,不得重复;可选 session:changed 与 chat:before-request,未知挂载点按 unknown-mount 拒绝",
       "items": {
         "$ref": "#/$defs/mount"
+      },
+      "uniqueItems": true
+    },
+    "slots": {
+      "type": "array",
+      "description": "UI 槽位白名单:申请能力 ui:slot 后,只允许登记这里逐个声明的槽位;槽位名必须在槽位枚举内且不得重复,枚举之外的槽位按 unknown-slot 拒绝。由 meta.json 推导的安装清单可以缺该字段,安装阶段会用产物导出的 manifest 补齐",
+      "items": {
+        "$ref": "#/$defs/slot"
+      },
+      "uniqueItems": true
+    },
+    "assets": {
+      "type": "array",
+      "description": "assets:download 的资产声明块:申请该能力时必须提供且不得为空,未申请该能力时不得出现,否则清单按 invalid-manifest 拒绝。逐条声明一个不可变的资产地址与它的 SHA-512,引擎按清单取回并校验,细节见组织文档 asset-download-capability.md",
+      "items": {
+        "$ref": "#/$defs/asset"
       },
       "uniqueItems": true
     }
@@ -99,11 +115,15 @@
         "events:session",
         "notify",
         "settings:locale",
+        "settings:surface",
+        "ui:slot",
         "net:fetch",
         "assets:read",
+        "assets:download",
         "plugins:storage",
         "chat:request",
-        "provider:source"
+        "provider:source",
+        "provider:run"
       ]
     },
     "mount": {
@@ -112,6 +132,60 @@
         "session:changed",
         "chat:before-request"
       ]
+    },
+    "slot": {
+      "type": "string",
+      "description": "UI 槽位名,取自引擎的槽位枚举",
+      "enum": [
+        "nav.panel",
+        "conversation.tabs",
+        "settings.page",
+        "session.panel.section",
+        "nav.side",
+        "composer.toolbar",
+        "composer.notice",
+        "overlay.notice",
+        "message.actions",
+        "menu.item"
+      ]
+    },
+    "asset": {
+      "type": "object",
+      "description": "一份资产声明;五个字段全部必填",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*$",
+          "description": "资产标识,插件内唯一,调用时用它指定资产"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "绝对地址;只允许 https,回环主机允许 http;不携带内嵌凭证"
+        },
+        "sha512": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{128}$",
+          "description": "SHA-512 摘要,128 位小写十六进制,不带前缀"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "声明体积(字节);实际字节数与声明不符即失败"
+        },
+        "version": {
+          "$ref": "#/$defs/version",
+          "description": "三段数字;同一 id 换版本必须换地址或换哈希"
+        }
+      },
+      "required": [
+        "id",
+        "url",
+        "sha512",
+        "bytes",
+        "version"
+      ],
+      "additionalProperties": false
     }
   }
 }

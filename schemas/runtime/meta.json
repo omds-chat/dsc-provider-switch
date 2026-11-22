@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://omds-chat.github.io/dsc-plugin-template/schemas/runtime/meta.json",
   "title": "dsc-plugin-runtime-meta",
-  "description": "DSC 插件运行时元数据文件。字段与读取口径以 DeepSeek-Chat-Enhanced 的 dsc-plugin-engine 与 dsc-market 实现为准:离线包预检读 name、version、author、license、description、capabilities 与 dependencies.dsc;市场另外读 repo_link、home_page 与 mounts。清单的 engines 取自 dependencies.dsc,清单的 dependencies(插件 id 列表)与 conflicts 不从本文件推导。",
+  "description": "DSC 插件运行时元数据文件。字段与读取口径以 DeepSeek-Chat-Enhanced 的 dsc-plugin-engine 与 dsc-market 实现为准:离线包预检读 name、version、author、license、description、capabilities 与 dependencies.dsc;市场另外读 repo_link、home_page、mounts 与 slots。清单的 engines 取自 dependencies.dsc,清单的 dependencies(插件 id 列表)与 conflicts 不从本文件推导。",
   "type": "object",
   "properties": {
     "name": {
@@ -42,6 +42,14 @@
       "description": "可选的挂载点声明。市场由 meta.json 推导清单时会读它,写进安装清单的 mounts;离线包推导当前不读该字段,包里写了也不影响推导结果,缺省时由产物导出的 manifest.mounts 补齐。挂载点取自 dsc-core 的挂载点表,清单校验阶段遇到表外名字按 unknown-mount 拒绝。",
       "items": {
         "$ref": "#/$defs/mount"
+      },
+      "uniqueItems": true
+    },
+    "slots": {
+      "type": "array",
+      "description": "可选的 UI 槽位白名单声明。市场由 meta.json 推导清单时会读它,写进安装清单的 slots;离线包推导当前不读该字段,缺省时由产物导出的 manifest.slots 补齐,回落口径与 mounts 一致。槽位名取自引擎的槽位枚举,枚举之外的名字让整份推导放弃该字段,回落到产物导出的 manifest。",
+      "items": {
+        "$ref": "#/$defs/slot"
       },
       "uniqueItems": true
     },
@@ -136,11 +144,15 @@
         "events:session",
         "notify",
         "settings:locale",
+        "settings:surface",
+        "ui:slot",
         "net:fetch",
         "assets:read",
+        "assets:download",
         "plugins:storage",
         "chat:request",
-        "provider:source"
+        "provider:source",
+        "provider:run"
       ]
     },
     "mount": {
@@ -149,6 +161,22 @@
       "enum": [
         "session:changed",
         "chat:before-request"
+      ]
+    },
+    "slot": {
+      "type": "string",
+      "description": "UI 槽位名,取自引擎的槽位枚举 SLOT_NAMES",
+      "enum": [
+        "nav.panel",
+        "conversation.tabs",
+        "settings.page",
+        "session.panel.section",
+        "nav.side",
+        "composer.toolbar",
+        "composer.notice",
+        "overlay.notice",
+        "message.actions",
+        "menu.item"
       ]
     },
     "pluginId": {

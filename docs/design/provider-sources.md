@@ -116,7 +116,6 @@ dsc-provider-switch 把「一个模型来源的端点描述」做成可注册的
 | 端点选择语义 | 本版引擎取注册表里该能力的第一个端点,插件不能指定端点;多插件同时声明时归属随激活顺序变化,引擎文档已把这列为待决项。本插件的启停过滤只能决定「要不要拒绝」,不能决定「用哪个端点」 | 宿主明确「可选集合按插件限定」还是「由用户指定本次用哪个端点」 |
 | `openai-chat` 执行缺口 | 内核没有 `openai-chat` 的执行分支,内置的 openai 端点与自定义 OpenAI 兼容端点登记后今天调不通;转换层与校验已就绪 | 内核补齐 `openai-chat` 分支前,这两类端点仅作声明占位 |
 | doubao 未内置 | `schemas/examples/doubao.descriptor.json` 已按调研落成方言示例,但豆包的 `reasoning:think` 形态(type-toggle 加 effort-level 并存、responseField)超出本版 Schema 的单分叉表达,未内置注册 | Schema 演进后再评估;见 docs/spec.md 第八节 |
-| 引擎 Schema 未收录 `provider:run` 与 `settings:surface` | 清单与 meta Schema 的能力枚举既没有 `provider:run` 也没有 `settings:surface`;引擎能力表已含两者 | 上游同步 Schema 枚举;差异已记入 specs/README.md 的「已知差异」表 |
 
 ## 七、与宿主实现的对齐依据
 

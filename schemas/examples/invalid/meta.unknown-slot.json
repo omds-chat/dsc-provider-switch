@@ -1,0 +1,16 @@
+{
+  "name": "dsc-demo-log",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "description": {
+    "zh-CN": "示例插件"
+  },
+  "author": "demo",
+  "repo_link": "https://github.com/omds-chat/dsc-plugin-template",
+  "dependencies": {
+    "dsc": "^1.0.0"
+  },
+  "slots": [
+    "sidebar.custom"
+  ]
+}

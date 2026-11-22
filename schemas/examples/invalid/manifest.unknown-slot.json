@@ -1,0 +1,11 @@
+{
+  "id": "dsc-demo-log",
+  "name": "Demo Log",
+  "version": "0.1.0",
+  "capabilities": [
+    "ui:slot"
+  ],
+  "slots": [
+    "sidebar.custom"
+  ]
+}

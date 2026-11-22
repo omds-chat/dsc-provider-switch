@@ -16,11 +16,19 @@
     "events:session",
     "notify",
     "settings:locale",
+    "settings:surface",
+    "ui:slot",
     "plugins:storage",
-    "chat:request"
+    "chat:request",
+    "provider:source",
+    "provider:run"
   ],
   "mounts": [
     "session:changed",
     "chat:before-request"
+  ],
+  "slots": [
+    "nav.panel",
+    "composer.toolbar"
   ]
 }

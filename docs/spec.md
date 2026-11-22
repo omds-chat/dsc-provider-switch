@@ -255,7 +255,7 @@ node scripts/validate-specs.mjs
 
 ```text
 [1/6] 规范版本与 Schema 文件
-通过  规范版本与 Schema 路径: spec_version 1.0.0,dsc_core 1.0.0
+通过  规范版本与 Schema 路径: spec_version 1.1.0,dsc_core 1.0.0
 [2/6] 清单与 meta Schema 结构
 通过  schemas/manifest/plugin-manifest.schema.json
 通过  schemas/runtime/meta.json

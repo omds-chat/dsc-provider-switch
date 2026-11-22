@@ -6,8 +6,8 @@
 
 | 文件 | 内容 |
 |:---:|:---:|
-| [plugin-runtime-spec.md](plugin-runtime-spec.md) | 运行时规范:产物形态与体积上限、导出契约、生命周期与超时、能力与限流、上下文成员(可见范围、事件、提示与设置、插件数据、大体积数据与 IndexedDB、联网与外源请求)、安全边界、错误降级 |
-| [plugin-develop-spec.md](plugin-develop-spec.md) | 开发规范:清单字段与校验、版本与依赖、运行时 meta、作者签名与公钥位置、分发要求 |
+| [plugin-runtime-spec.md](plugin-runtime-spec.md) | 运行时规范:产物形态与体积上限、导出契约、生命周期与超时、能力与限流、上下文成员(可见范围、事件、提示与设置、插件数据、大体积数据与 IndexedDB、联网与外源请求、资产读取与下载、请求前补丁、插件设置表面、UI 槽位、供应端点与按端点执行)、安全边界、错误降级 |
+| [plugin-develop-spec.md](plugin-develop-spec.md) | 开发规范:清单字段与校验、UI 槽位白名单、资产声明块、版本与依赖、运行时 meta、作者签名与公钥位置、分发要求 |
 | [spec-version.json](spec-version.json) | 规范版本与 Schema 路径,供其他仓库引用时锁定 |
 | [../schemas/manifest/plugin-manifest.schema.json](../schemas/manifest/plugin-manifest.schema.json) | 清单 Schema |
 | [../schemas/runtime/meta.json](../schemas/runtime/meta.json) | 运行时 meta Schema |
@@ -37,20 +37,11 @@ node scripts/validate-specs.mjs <meta.json> --schema meta # 校验单个运行�
 
 ## 已知差异
 
-以下差异来自上游文档、Schema 与实现的对照,本规范按实现取舍并在此留痕,不修改上游文档。本表只保留当前仍然成立的条目:已经收敛的差异直接删除,不留历史,每行的「本规范取舍」都对应正文里的具体章节。
+规范正文与 Schema 已随上游 spec_version 1.1.0 逐字同步,`specs/` 两份规范、`spec-version.json` 与 `schemas/manifest`、`schemas/runtime` 及其样例都是上游原样副本,与模板的差异条目已清零。本表只按「实现/本仓 vs 上游文档」的单向口径保留本仓真实存在的本地差异:本仓与实现的取舍写在一侧,不修改上游文档;上游文件指 dsc-plugin-template 的对应文件,行号为当前正文位置。
 
-| 主题 | 上游文档口径 | 实现口径 | 本规范取舍 |
+| 主题 | 上游文档口径 | 实现/本仓口径 | 本仓处置 |
 |:---:|:---:|:---:|:---:|
-| 体积上限的记述来源 | 上游产物规范的备注仍写模板 specs 按旧上限记述、本仓库已提升到 2 MB,并留了发布前人工复核 | 实现、运行时规范与开发规范统一为 2 MB(2097152 字节),宿主提示文案由字节常量派生 | 按 2 MB 统一记述,该备注待上游更新 |
-| 离线包预检里体积检查的位置 | 引擎说明与用户指南的预检表把「`plugin.js` 不超过 2 MB」列在 `meta.json` 解析与 UTF-8 检查之后 | 取到 `plugin.js` 后立即比对体积,早于 `meta.json` 解码与解析;体积与清单同时不合规时报 `package-too-large` | 按实现排序,写进 [开发规范](plugin-develop-spec.md) 6.2 |
-| `meta.json` 的 UTF-8 要求 | 预检表只写「可解析」「`name`、`version`、`author` 非空」「版本为三段数字」 | 先按严格 UTF-8 解码,非法字节序列按 `invalid-meta` 拒绝,不会进入字段校验 | 写进 [开发规范](plugin-develop-spec.md) 4 与 6.2 的 `invalid-meta` 口径 |
-| `meta.json` 的 `description` 形态 | 运行时 meta Schema 与[开发规范](plugin-develop-spec.md) 4 要求 `description` 为双语对象,至少含 `zh-CN` 或 `en-US` 一项 | 引擎接受字符串形式的 `description`,两种语言按同一内容处理;字段缺失也不拒绝,按空串处理 | Schema 与引擎分开写:Schema 从严,引擎的最小校验单独列出 |
-| `meta.json` 的 `mounts` | 引擎用户指南写「`meta.json` 写了 `mounts` 就原样带进清单」 | 离线包预检只取 `capabilities` 与 `dependencies.dsc`,不读 `mounts`;市场解析 `meta.json` 时读它并写进清单的 `mounts`,缺省时由产物导出的清单补齐 | 按实现分别记述两条安装路径,写进[开发规范](plugin-develop-spec.md) 4 |
-| `meta.json` 的 `conflicts` | 上游只在清单层描述 `conflicts`,清单与用户指南都把它当作清单字段 | 由 `meta.json` 推导清单的两条路径都不读 `conflicts`,该字段不影响安装结果 | Schema 里保留该字段并标注「预留,引擎当前不读」,写进[开发规范](plugin-develop-spec.md) 4 |
-| 能力 `provider:run` | 清单 Schema 与运行时 meta Schema 的能力枚举只到 `provider:source`,没有 `provider:run` | 引擎能力表已含 `provider:run`(`context.provider.run`,10 次/10 秒,超时 15 秒),是供应端点执行侧的能力,与 `provider:source` 分开授权 | 本仓库的清单类型按实现收录 `provider:run`;上游 Schema 枚举待同步,同步前用本仓库 Schema 校验含 `provider:run` 的清单会误报 |
-| 能力 `settings:surface` | 清单 Schema 与运行时 meta Schema 的能力枚举没有 `settings:surface` | 引擎能力表已含 `settings:surface`(登记与读取共用 60 次/10 秒):插件激活期用 `context.settings.register` 登记字段描述,宿主据此渲染设置表单,写侧只在宿主的 `engine.pluginSettings(pluginId)` 门面 | 本仓库的清单类型按实现收录 `settings:surface`;上游 Schema 枚举待同步,同步前用本仓库 Schema 校验含 `settings:surface` 的清单会误报 |
-| 版本范围的写法 | 运行时 meta Schema 把 `dependencies.dsc` 描述为 semver range,`>=1.0.0 <2.0.0` 这类组合范围也能通过 Schema | 清单 `engines` 与离线包的 `dependencies.dsc` 都只接受单段比较表达式;组合范围在离线包预检阶段按 `invalid-meta` 拒绝,清单侧的 `engines` 才按 `incompatible-version` 拒绝 | 两个字段分别说明,并提示 `dependencies.dsc` 也要写成单段表达式 |
-| 带 `=` 前缀的精确版本 | 版本范围只写「支持 `^`、`~`、`>=`、`<=` 与精确版本」,未提等号前缀 | 范围规则接受 `=1.0.0`,与 `1.0.0` 等价,按三段数字比较 | [开发规范](plugin-develop-spec.md) 3 补上 `=` |
+| 来源描述文件的归属 | 上游规范区不含来源描述文件:[spec-version.json](https://github.com/omds-chat/dsc-plugin-template/blob/main/specs/spec-version.json) 4-7 行的 `schemas` 只登记清单与运行时 meta 两份 Schema,上游 `schemas/` 目录也没有 descriptor 条目 | 本仓的来源描述由 [docs/spec.md](../docs/spec.md) 承担权威口径,结构契约在 [schemas/source-descriptor.schema.json](../schemas/source-descriptor.schema.json),五份方言样例为 [schemas/examples/](../schemas/examples/) 下的 `*.descriptor.json`,校验脚本对它们单独成段([scripts/validate-specs.mjs](../scripts/validate-specs.mjs) 第 3、4 段) | 保留为本仓自有资产,不进入上游副本,也不反向要求上游收录 |
 
 ## 语言
 
